@@ -1,0 +1,1 @@
+import StaticWebDoc as module
