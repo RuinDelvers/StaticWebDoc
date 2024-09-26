@@ -77,10 +77,6 @@ def _is_class_template(path):
 
 	return all(values)
 
-def _todo_marker(text=""):
-	print(f"TODO: {text}")
-	return jinja2.filters.Markup(f"TODO: {text}")
-
 def _is_renderable_template(path):
 	if type(path) == str:
 		path = pathlib.Path(path)
@@ -168,7 +164,10 @@ class Project:
 	
 
 	def __link_to_topic(self, template_name, display=None):
-		template_name += ".jinja"
+		inpath = pathlib.Path(template_name)
+
+		if inpath.suffix != TEMPLATE_EXTENSION:
+			template_name += ".jinja"
 
 		if display is None:
 			display = self.__get_field(template_name, "name")
@@ -179,6 +178,11 @@ class Project:
 
 	def __get_field(self, template, key):
 		cache = self.env.get_cache()
+
+		checkpath = pathlib.Path(template)
+
+		if checkpath.suffix != TEMPLATE_EXTENSION:
+			template += TEMPLATE_EXTENSION
 
 		if template not in cache:
 			self.__render_inner(template)
@@ -196,6 +200,7 @@ class Project:
 
 	def __template_to_outpath(self, template_name):
 		path = pathlib.Path(self.__docroot)/template_name
+		path = path.with_suffix(OUTPUT_EXTENSION)
 
 		# Need to make sure that this is considered from the root of the website.
 		return f"/document/{path.relative_to(self.__docroot)}"
