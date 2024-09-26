@@ -3,7 +3,6 @@ import os
 import pathlib
 import shutil
 import json
-import tqdm
 
 from jinja2.ext import Extension
 from jinja2 import nodes
@@ -114,7 +113,6 @@ class Project:
 		self.__input = pathlib.Path(root)/self.source
 		self.__output = pathlib.Path(root)/self.output
 		self.__docroot = self.__output/self.document_dir
-		self.__progress_bar = None
 
 		if self.env is None:
 			self.env = _CustomEnvironment(
@@ -222,14 +220,12 @@ class Project:
 		path.parent.mkdir(exist_ok=True, parents=True)
 
 		with open(str(path), 'w') as output:
-			self.__progress_bar.set_description(f"Rendering {template_name}")
+			print(f"Rendering {template_name}")
 
 			template = self.env.get_template(template_name)
 			output.write(template.render())
 
 			self.__rendered_templates.update({template_name})
-			self.__progress_bar.update(1)
-			self.__progress_bar.refresh()
 
 	@property
 	def output_dir(self):
@@ -253,18 +249,17 @@ class Project:
 			output.write(string)
 
 	def __clean_render_dir(self):
-		print(self.__docroot)
 		if self.__docroot.exists():
 			shutil.rmtree(self.__docroot)
 
 		self.cache_file.unlink(missing_ok=True)
 
+	def clean(self):
+		self.__clean_render_dir()
+
 	def render(self):
 		self.__clean_render_dir()
 		work_num = len(self.renderable_templates())
-		self.__progress_bar = tqdm.tqdm(
-			total=work_num)
-
 
 		for template in self.renderable_templates():
 			self.__render_inner(template)
