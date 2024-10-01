@@ -6,9 +6,6 @@ import json
 
 from jinja2.ext import Extension
 from jinja2 import nodes
-from dataclasses import dataclass
-from dataclasses import field
-from dataclasses import InitVar
 from pathlib import Path
 
 TEMPLATE_EXTENSION = ".jinja"
@@ -220,7 +217,7 @@ class Project:
 		path.parent.mkdir(exist_ok=True, parents=True)
 
 		with open(str(path), 'w') as output:
-			print(f"Rendering {template_name}")
+			print(f"[Render] {template_name}")
 
 			template = self.env.get_template(template_name)
 			output.write(template.render())
@@ -240,14 +237,6 @@ class Project:
 		return pathlib.Path(self.__output)/CACHE_FILE
 	
 
-	def __write_cached_values(self):
-		cache = self.env.get_cache()
-		string = json.dumps(cache, indent=4)
-		path = self.cache_file
-
-		with open(path, 'w') as output:
-			output.write(string)
-
 	def __clean_render_dir(self):
 		if self.__docroot.exists():
 			shutil.rmtree(self.__docroot)
@@ -264,7 +253,6 @@ class Project:
 		for template in self.renderable_templates():
 			self.__render_inner(template)
 
-		self.__write_cached_values()
 		self.env.clear_cache()
 		self.__rendered_templates = set()
 		self.__renderable_templates = set()
