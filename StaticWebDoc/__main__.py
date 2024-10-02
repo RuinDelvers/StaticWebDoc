@@ -65,5 +65,5 @@ if __name__ == '__main__':
 	try:
 		App().run()		
 	except Exception as ex:
-		print(traceback.format_exc())
+		print(f"\n[Error] {type(ex).__name__}: {ex.message}")
 		exit(1)
