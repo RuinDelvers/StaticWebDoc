@@ -6,6 +6,7 @@ import pathlib
 import argparse
 import sys
 import traceback
+import jinja2
 
 class App:
 	def __init__(self):
@@ -63,7 +64,14 @@ class App:
 
 if __name__ == '__main__':
 	try:
-		App().run()		
-	except Exception as ex:
+		App().run()
+	except jinja2.TemplateNotFound as ex:
 		print(f"\n[Error] {type(ex).__name__}: {ex.message}")
+		exit(1)
+	except jinja2.TemplateAssertionError as ex:
+		print(f"\n[Error] {type(ex).__name__}: {ex.message}")
+		exit(1)
+	except Exception as ex:
+		print(f"\n[Error] {type(ex).__name__}")
+		traceback.print_exception(ex)		
 		exit(1)

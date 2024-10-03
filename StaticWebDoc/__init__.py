@@ -82,6 +82,10 @@ def _style(path):
 	return jinja2.filters.Markup(f'<link rel="stylesheet" type="text/css" href="/style/{path}">')
 
 def _link(location, display_text, class_type=""):
+	path_check = pathlib.Path(location)
+	if path_check.suffix != OUTPUT_EXTENSION:
+		location += OUTPUT_EXTENSION
+
 	return jinja2.filters.Markup(f'<a href="/document/{location}" class="{class_type}"> {display_text} </a>')
 
 
