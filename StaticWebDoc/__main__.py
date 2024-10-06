@@ -71,6 +71,9 @@ if __name__ == '__main__':
 	except jinja2.TemplateAssertionError as ex:
 		print(f"\n[Error] {type(ex).__name__}: {ex.message}")
 		exit(1)
+	except StaticWebDoc.RenderError as ex:
+		print(f"\n[Error] {type(ex).__name__}: {ex.message}")
+		exit(1)
 	except Exception as ex:
 		print(f"\n[Error] {type(ex).__name__}")
 		traceback.print_exception(ex)		

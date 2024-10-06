@@ -4,8 +4,9 @@ import pathlib
 import shutil
 import json
 
-from jinja2.ext import Extension
-from jinja2 import nodes
+from StaticWebDoc.environment import CustomEnvironment
+from StaticWebDoc.extensions import FragmentCacheExtension
+from StaticWebDoc.exceptions import RenderError
 from pathlib import Path
 
 TEMPLATE_EXTENSION = ".jinja"
@@ -20,56 +21,8 @@ SCRIPT_DIR = "scripts"
 IMAGE_DIR = "images"
 CACHE_FILE = "variables.json"
 
-class _CustomEnvironment(jinja2.Environment):
-	""" Custom environment for this type of project. """
-
-	""" This is a map that maps template names to a map of keys to data. """
-	__cached_map = {}
-
-	def add_data(self, template, key, data):
-		if template not in self.__cached_map:
-			self.__cached_map[template] = {}
-
-		self.__cached_map[template][key] = data
-
-	def get_cache(self):
-		return self.__cached_map
-
-	def clear_cache(self):
-		self.__cached_map = {}
-
-class _FragmentCacheExtension(jinja2.ext.Extension):
-
-	tags = {"fieldblock"}
-
-	def __init__(self, environment):
-		super().__init__(environment)
-
-	def parse(self, parser):
-		lineno = next(parser.stream).lineno
-		blockname = parser.parse_expression()
-		args = [nodes.Const(parser.name), nodes.Const(blockname.name)]
-		body = parser.parse_statements(["name:endfieldblock"], drop_needle=True)
-
-		# Create a block of the same name so that it can be overwritten in child classes.
-		block = nodes.Block(lineno=lineno)
-		block.name = blockname.name
-		block.scoped = True
-		block.required = False
-		block.body = body
-
-		return nodes.CallBlock(
-			self.call_method("_cache_support", args), [], [], [block]
-		).set_lineno(lineno)
-
-	def _cache_support(self, filename, name, caller):		
-		rv = caller()
-		self.environment.add_data(filename, name, rv)
-
-		return ""
-
 def _is_class_template(path):
-	values = map(lambda x: x[0] == x[1], zip(path.suffixes, ('.class', '.jinja'))) 
+	values = map(lambda x: x[0] == x[1], zip(path.suffixes, ('.class', '.jinja')))
 
 	return all(values)
 
@@ -116,10 +69,10 @@ class Project:
 		self.__docroot = self.__output/self.document_dir
 
 		if self.env is None:
-			self.env = _CustomEnvironment(
+			self.env = CustomEnvironment(
 				loader=jinja2.FileSystemLoader(self.__input),
 				autoescape=jinja2.select_autoescape(),
-				extensions=[_FragmentCacheExtension])
+				extensions=[FragmentCacheExtension])
 
 		self.__init_dirs()
 		self.__init_jinja_callbacks()
@@ -223,8 +176,17 @@ class Project:
 		with open(str(path), 'w') as output:
 			print(f"[Render] {template_name}")
 
-			template = self.env.get_template(template_name)
-			output.write(template.render())
+			try:
+				template = self.env.get_template(template_name)
+			except jinja2.TemplateNotFound as ex:
+				raise RenderError(template_name, ex)
+
+			try:
+				rendered_data = template.render()
+			except jinja2.TemplateAssertionError as ex:
+				raise RenderError(template_name, ex)
+
+			output.write(rendered_data)
 
 			self.__rendered_templates.update({template_name})
 
@@ -260,3 +222,7 @@ class Project:
 		self.env.clear_cache()
 		self.__rendered_templates = set()
 		self.__renderable_templates = set()
+
+__all__ = [
+	"Project"
+]
