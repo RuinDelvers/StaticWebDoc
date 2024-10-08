@@ -224,5 +224,6 @@ class Project:
 		self.__renderable_templates = set()
 
 __all__ = [
-	"Project"
+	"Project",
+	"proj_fn"
 ]
