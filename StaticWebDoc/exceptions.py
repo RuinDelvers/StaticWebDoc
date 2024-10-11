@@ -13,8 +13,15 @@ class RenderError(Exception):
 	def template(self):
 		return self.__template	
 
-	def __str__(self):
-		if issubclass(self.__parent, RenderError):
+	@property
+	def message(self):
+		if issubclass(type(self.__parent), RenderError):
 			return f"While rendering {self.__template}:\n- {self.__parent}"
 		else:
-			return f"While rendering {self.__template} encountered error: {self.__parent}"
+			if hasattr(self.__parent, "message"):
+				return f"While rendering {self.__template} encountered error: [{type(self.__parent).__name__}] {self.__parent.message}"
+			else:
+				return f"While rendering {self.__template} encountered error: [{type(self.__parent).__name__}] {self.__parent.message}"
+
+	def __str__(self):
+		return f"RenderErrors(message={self.message})"

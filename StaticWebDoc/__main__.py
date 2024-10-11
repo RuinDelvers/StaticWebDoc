@@ -76,5 +76,5 @@ if __name__ == '__main__':
 		exit(1)
 	except Exception as ex:
 		print(f"\n[Error] {type(ex).__name__}")
-		traceback.print_exception(ex)		
+		traceback.print_exception(ex)
 		exit(1)
