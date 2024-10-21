@@ -82,6 +82,8 @@ class Project:
 
 		self.init()
 
+		self.__context_data = {}
+
 	def init(self):
 		pass
 
@@ -186,9 +188,49 @@ class Project:
 			except jinja2.TemplateAssertionError as ex:
 				raise RenderError(template_name, ex)
 
+			try:
+				rendered_data = template.render()
+			except jinja2.exceptions.UndefinedError as ex:
+				raise RenderError(template_name, ex)
+
 			output.write(rendered_data)
 
 			self.__rendered_templates.update({template_name})
+
+	@proj_fn
+	def push_context_data(self, context_name, value):
+		if context_name in self.__context_data:
+			self.__context_data[context_name].append(value)
+		else:
+			self.__context_data[context_name] = [value]
+
+		return ""
+
+	@proj_fn
+	def pop_context_data(self, context_name):
+		if context_name in self.__context_data:
+			self.__context_data[context_name].pop()
+		else:
+			raise ValueError(f"Context data does not exist for key {context_name}")
+
+		return ""
+
+
+	@proj_fn
+	def set_context_data(self, context_name, value):
+		if context_name in self.__context_data:
+			self.__context_data[context_name][-1] = value
+		else:
+			self.__context_data[context_name] = [value]
+
+		return ""
+		
+	@proj_fn
+	def get_context_data(self, context_name):
+		if context_name in self.__context_data:
+			return self.__context_data[context_name][-1]
+		else:
+			raise ValueError(f"Context data does not exist for key {context_name}")
 
 	@property
 	def output_dir(self):
