@@ -75,8 +75,10 @@ class Project:
 	image_dir: str = IMAGE_DIR
 	document_dir: str = DOCUMENT_DIR
 	env: jinja2.Environment | None = None
+	exts = []
 
 	def __init__(self, root):
+		print(self.exts)
 		self.__input = pathlib.Path(root)/self.source
 		self.__output = pathlib.Path(root)/self.output
 		self.__docroot = self.__output/self.document_dir
@@ -85,7 +87,7 @@ class Project:
 			self.env = CustomEnvironment(
 				loader=jinja2.FileSystemLoader(self.__input),
 				autoescape=jinja2.select_autoescape(),
-				extensions=[FragmentCacheExtension])
+				extensions=[FragmentCacheExtension] + self.exts)
 
 		self.__init_dirs()
 		self.__init_jinja_callbacks()
@@ -218,16 +220,12 @@ class Project:
 		else:
 			self.__context_data[context_name] = [value]
 
-		return ""
-
 	@proj_fn
 	def pop_context_data(self, context_name):
 		if context_name in self.__context_data:
 			self.__context_data[context_name].pop()
 		else:
 			raise ValueError(f"Context data does not exist for key {context_name}")
-
-		return ""
 
 
 	@proj_fn
@@ -236,8 +234,6 @@ class Project:
 			self.__context_data[context_name][-1] = value
 		else:
 			self.__context_data[context_name] = [value]
-
-		return ""
 		
 	@proj_fn
 	def get_context_data(self, context_name):
