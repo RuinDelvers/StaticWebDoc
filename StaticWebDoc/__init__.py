@@ -1,8 +1,6 @@
 import jinja2
-import os
 import pathlib
 import shutil
-import json
 
 from StaticWebDoc.environment import CustomEnvironment
 from StaticWebDoc.extensions import FragmentCacheExtension
@@ -41,6 +39,20 @@ def _link(location, display_text, class_type=""):
 
 	return jinja2.filters.Markup(f'<a href="/document/{location}" class="{class_type}"> {display_text} </a>')
 
+def _template_name(template_name, root=None, base_only=False):
+	p = pathlib.Path(template_name)
+
+	if root is None:
+		if base_only:
+			return p.with_suffix("").name
+		else:
+			return p.with_suffix("")
+	else:
+		if base_only:
+			return p.relative_to(root).with_suffix("").name
+		else:
+			return p.relative_to(root).with_suffix("")
+
 
 def proj_fn(name):
 	if type(name) == str:
@@ -53,6 +65,7 @@ def proj_fn(name):
 		name.decorator = proj_fn
 		name.project_fn_name = name.__name__
 		return name
+
 
 class Project:
 	source: str = DEFAULT_TEMPLATE_DIR
@@ -105,6 +118,7 @@ class Project:
 		self.add_global("document_dir", self.document_dir)
 		self.add_global("get_field", self.__get_field)
 		self.add_global("link_to", self.__link_to_topic)
+		self.add_global("template_name", _template_name)
 
 		self.add_global("style", _style)
 		self.add_global("link", _link)
