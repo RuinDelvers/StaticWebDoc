@@ -38,14 +38,12 @@ class App:
 	def __run_single(self, root, args):
 		print(f"Searching for projects in directory {root}")
 
-		projectfile = root/"project.py"
+		projectfile = root
 
 		if projectfile.exists():
 			print(f"- Found project file: {projectfile}")
 
-		spec = importlib.util.spec_from_file_location(
-			f"StaticWebDoc.{projectfile.stem}",
-			projectfile)
+		spec = importlib.util.spec_from_file_location(projectfile.name, projectfile/"__init__.py")
 		code = importlib.util.module_from_spec(spec)
 		spec.loader.exec_module(code)
 

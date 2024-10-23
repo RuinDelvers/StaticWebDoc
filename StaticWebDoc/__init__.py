@@ -23,6 +23,7 @@ IMAGE_DIR = "images"
 CACHE_FILE = "variables.json"
 
 CURRENT_RENDERING_PROJECT = None
+GLOBAL_PROJECT_TYPES = []
 
 def current_project():
 	return CURRENT_RENDERING_PROJECT
@@ -32,6 +33,9 @@ class Markupable:
 	
 	def markup(self):
 		raise NotImplementedError(f"markup() not implemented for {type(self).__name__}")
+	
+	def __str__(self):
+		return self.markup()
 
 def _is_class_template(path):
 	values = map(lambda x: x[0] == x[1], zip(path.suffixes, ('.class', '.jinja')))
@@ -87,6 +91,8 @@ def proj_fn(name):
 
 def proj_type(value):
 	value.is_project_defined_type = True
+
+	GLOBAL_PROJECT_TYPES.append(value)
 
 	return value
 
@@ -161,8 +167,11 @@ class Project:
 			obj = getattr(self, field_name)
 			if hasattr(obj, "decorator") and obj.decorator == proj_fn:
 				self.add_global(obj.project_fn_name, obj)
-			if hasattr(obj, "is_project_defined_type") and obj.is_project_defined_type:
-				self.add_global(obj.__name__, obj)
+			#if hasattr(obj, "is_project_defined_type") and obj.is_project_defined_type:
+			#	self.add_global(obj.__name__, obj)
+
+		for obj in GLOBAL_PROJECT_TYPES:
+			self.add_global(obj.__name__, obj)
 
 	
 
