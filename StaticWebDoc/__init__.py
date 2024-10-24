@@ -8,7 +8,7 @@ import StaticWebDoc.extensions as extensions
 
 from StaticWebDoc.environment import CustomEnvironment
 from StaticWebDoc.exceptions import RenderError
-from pathlib import Path
+from termcolor import colored
 
 TEMPLATE_EXTENSION = ".jinja"
 OUTPUT_EXTENSION = ".html"
@@ -24,6 +24,7 @@ CACHE_FILE = "variables.json"
 
 CURRENT_RENDERING_PROJECT = None
 GLOBAL_PROJECT_TYPES = []
+GLOBAL_FUNCTIONS = []
 
 def current_project():
 	return CURRENT_RENDERING_PROJECT
@@ -80,13 +81,11 @@ def _get_markup(value):
 def proj_fn(name):
 	if type(name) == str:
 		def inner(fn):
-			fn.decorator = proj_fn
-			fn.project_fn_name = name
+			GLOBAL_FUNCTIONS.append((name, fn))
 			return fn
 		return inner
 	else:
-		name.decorator = proj_fn
-		name.project_fn_name = name.__name__
+		GLOBAL_FUNCTIONS.append(name)
 		return name
 
 def proj_type(value):
@@ -159,19 +158,24 @@ class Project:
 		self.add_global("style", _style)
 		self.add_global("link", _link)
 		self.add_global("markup", lambda text: _get_markup(text))		
+		self.add_global(self.pop_context_data.__name__, self.pop_context_data)
+		self.add_global(self.set_context_data.__name__, self.set_context_data)
+		self.add_global(self.get_context_data.__name__, self.get_context_data)
+		self.add_global(self.current_template.__name__, self.current_template)
+		self.add_global(self.env_data.__name__, self.env_data)
 
 		for key, value in self.global_vars.items():
 			self.add_global(key, value)
 
-		for field_name in dir(self):
-			obj = getattr(self, field_name)
-			if hasattr(obj, "decorator") and obj.decorator == proj_fn:
-				self.add_global(obj.project_fn_name, obj)
-			#if hasattr(obj, "is_project_defined_type") and obj.is_project_defined_type:
-			#	self.add_global(obj.__name__, obj)
-
 		for obj in GLOBAL_PROJECT_TYPES:
 			self.add_global(obj.__name__, obj)
+
+		for obj in GLOBAL_FUNCTIONS:
+			if isinstance(obj, tuple):
+				name, fn = obj
+				self.add_global(name, fn)
+			else:
+				self.add_global(obj.__name__, obj)
 
 	
 
@@ -235,7 +239,7 @@ class Project:
 
 		with open(str(path), 'w') as output:
 			self.__render_stack.append(template_name)
-			print(f"[Render] {template_name}")
+			print(colored(f"[Render] {template_name}", "blue"))
 
 			did_render = False
 
@@ -254,40 +258,33 @@ class Project:
 			self.__rendered_templates.update({template_name})
 			self.__render_stack.pop()
 
-	@proj_fn
 	def push_context_data(self, context_name, value):
 		if context_name in self.__context_data:
 			self.__context_data[context_name].append(value)
 		else:
 			self.__context_data[context_name] = [value]
 
-	@proj_fn
 	def pop_context_data(self, context_name):
 		if context_name in self.__context_data:
 			self.__context_data[context_name].pop()
 		else:
 			raise ValueError(f"Context data does not exist for key {context_name}")
 
-
-	@proj_fn
 	def set_context_data(self, context_name, value):
 		if context_name in self.__context_data:
 			self.__context_data[context_name][-1] = value
 		else:
 			self.__context_data[context_name] = [value]
 		
-	@proj_fn
 	def get_context_data(self, context_name):
 		if context_name in self.__context_data:
 			return self.__context_data[context_name][-1]
 		else:
 			raise ValueError(f"Context data does not exist for key {context_name}")
 
-	@proj_fn
 	def current_template(self):
 		return self.__render_stack[-1]
 
-	@proj_fn
 	def env_data(self, env_key, key=None):
 		data = self.env.get_data()
 		ctemp = self.current_template()

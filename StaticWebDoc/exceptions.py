@@ -1,3 +1,15 @@
+import jinja2
+import pathlib
+
+def get_jinja_message(ex):
+	match ex:
+		case jinja2.TemplateNotFound() | jinja2.TemplatesNotFound():
+			return f"[{type(ex).__name__}] {', '.join(ex.templates)}"
+		case jinja2.TemplateSyntaxError():
+			return f"[{type(ex).__name__}]\n- Location {ex.filename}:\n- -  ({ex})"
+		case default:
+			return f"[{type(ex).__name__}] {ex}"
+
 class RenderError(Exception):
 	""" Exception raised during rendering to keep track of template render errors. """
 
@@ -17,9 +29,9 @@ class RenderError(Exception):
 	def message(self):
 		if issubclass(type(self.__parent), RenderError):
 			return f"While rendering {self.__template}:\n- {self.__parent}"
-		else:
-			if hasattr(self.__parent, "message"):
-				return f"While rendering {self.__template} encountered error: [{type(self.__parent).__name__}] {self.__parent.message}"
+		else:		
+			if isinstance(self.__parent, jinja2.TemplateError):
+				return f"While rendering {self.__template} encountered error: {get_jinja_message(self.__parent)}"
 			else:
 				return f"While rendering {self.__template} encountered error: [{type(self.__parent).__name__}] {self.__parent.message}"
 

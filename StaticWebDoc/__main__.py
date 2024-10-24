@@ -4,9 +4,10 @@ import importlib.util
 import os
 import pathlib
 import argparse
-import sys
 import traceback
 import jinja2
+from termcolor import colored
+from . import exceptions
 
 class App:
 	def __init__(self):
@@ -63,16 +64,13 @@ class App:
 if __name__ == '__main__':
 	try:
 		App().run()
-	except jinja2.TemplateNotFound as ex:
-		print(f"\n[Error] {type(ex).__name__}: {ex.message}")
-		exit(1)
-	except jinja2.TemplateAssertionError as ex:
-		print(f"\n[Error] {type(ex).__name__}: {ex.message}")
+	except jinja2.exceptions.TemplateError as ex:
+		print(colored(exceptions.get_jinja_message(ex), "red"))
 		exit(1)
 	except StaticWebDoc.RenderError as ex:
-		print(f"\n[Error] {type(ex).__name__}: {ex.message}")
+		print(colored(f"\n[Error] {type(ex).__name__}: {ex.message}", "red"))
 		exit(1)
 	except Exception as ex:
-		print(f"\n[Error] {type(ex).__name__}")
 		traceback.print_exception(ex)
+		print(colored(f"\n[Error] {type(ex).__name__}", "red"))		
 		exit(1)
