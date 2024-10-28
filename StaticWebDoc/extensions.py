@@ -1,26 +1,22 @@
 import jinja2
-import dataclasses
+import pathlib
 import enum
 
-from jinja2.ext import Extension
 from jinja2 import nodes
 
 
 class JSON:
-	def default(self):
+	def json(self):
 		return { "type": type(self).__name__ }
 
-	def json_map(self):
-		return {}
-
 class JSONEnum(JSON, enum.Enum):
-	def default(self):
+	def json(self):
 		return { "type": "enum", "ename": type(self).__name__, "name": self.name, "value": self.value}
 
 class JSONEncoder:
 	def __call__(self, obj):
 		if isinstance(obj, JSON):
-			return obj.default()
+			return obj.json()
 		else:
 			raise TypeError
 
@@ -83,6 +79,7 @@ class EmbeddedDataExtension(jinja2.ext.Extension):
 		).set_lineno(lineno)
 
 	def handle(self, template_name, key, value, caller):
+		template_name = str(pathlib.Path(template_name).with_suffix("").as_posix())
 		if isinstance(value, jinja2.Undefined):
 			raise ValueError(f"[{template_name}] Attempted to set value to undefined for key={key}")
 
@@ -110,6 +107,7 @@ class EmbeddedDataSectionExtension(jinja2.ext.Extension):
 
 	def _data_section_support(self, filename, name, caller):
 		self.environment.set_data_env(name)
+		filename = str(pathlib.Path(filename).with_suffix("").as_posix())
 
 		if not self.environment.has_data(filename, name):
 			self.environment.add_data(filename, name, {})

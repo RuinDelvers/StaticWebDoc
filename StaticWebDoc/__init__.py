@@ -3,6 +3,7 @@ import pathlib
 import shutil
 import orjson
 
+import jinja2.ext
 import jinja2.filters
 
 import StaticWebDoc.extensions as extensions
@@ -68,14 +69,14 @@ def _template_name(template_name, root=None, base_only=False):
 
 	if root is None:
 		if base_only:
-			return p.with_suffix("").name
+			return p.with_suffix("").as_posix().name
 		else:
-			return p.with_suffix("")
+			return p.with_suffix("").as_posix()
 	else:
 		if base_only:
-			return p.relative_to(root).with_suffix("").name
+			return p.relative_to(root).with_suffix("").as_posix().name
 		else:
-			return p.relative_to(root).with_suffix("")
+			return p.relative_to(root).with_suffix("").as_posix()
 
 def _get_markup(value):
 	if isinstance(value, Markupable):
@@ -315,7 +316,7 @@ class Project:
 
 	def env_data(self, env_key, key=None, default=None, template=None):
 		data = self.env.get_data()
-		ctemp = self.current_template() if template is None else template
+		ctemp = _template_name(self.current_template()) if template is None else template
 
 		if ctemp in data:
 			envs = data[ctemp]
