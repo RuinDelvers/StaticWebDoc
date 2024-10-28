@@ -64,7 +64,7 @@ def _link(location, display_text, class_type=""):
 
 	return jinja2.filters.Markup(f'<a href="/document/{location}" class="{class_type}"> {display_text} </a>')
 
-def _template_name(template_name, root=None, base_only=False):
+def template_to_name(template_name, root=None, base_only=False):
 	p = pathlib.Path(template_name)
 
 	if root is None:
@@ -172,7 +172,7 @@ class Project:
 		self.add_global("document_dir", self.document_dir)
 		self.add_global("get_field", self.__get_field)
 		self.add_global("link_to", self.link_to_topic)
-		self.add_global("template_name", _template_name)
+		self.add_global("template_name", template_to_name)
 
 		self.add_global("style", _style)
 		self.add_global("link", _link)
@@ -316,7 +316,7 @@ class Project:
 
 	def env_data(self, env_key, key=None, default=None, template=None):
 		data = self.env.get_data()
-		ctemp = _template_name(self.current_template()) if template is None else template
+		ctemp = template_to_name(self.current_template()) if template is None else template
 
 		if ctemp in data:
 			envs = data[ctemp]
@@ -393,11 +393,12 @@ class Project:
 			raise ValueError("Another project is already rendering.")
 
 		CURRENT_RENDERING_PROJECT = self
-		self.__load_data()
-		self.__filter_data()
+		#self.__load_data()
+		#self.__filter_data()
+		self.__clean_render_dir()
 		self.pre_process()
 
-		for template in self.filtered_templates():
+		for template in self.renderable_templates():
 			self.__render_inner(template)
 
 		self.__rendered_templates = set()

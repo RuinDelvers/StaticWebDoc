@@ -1,5 +1,4 @@
 import jinja2
-import pathlib
 
 def get_jinja_message(ex):
 	match ex:
@@ -23,13 +22,13 @@ class RenderError(Exception):
 
 	@property
 	def template(self):
-		return self.__template	
+		return self.__template
 
 	@property
 	def message(self):
 		if issubclass(type(self.__parent), RenderError):
 			return f"While rendering {self.__template}:\n- {self.__parent}"
-		else:		
+		else:
 			if isinstance(self.__parent, jinja2.TemplateError):
 				return f"While rendering {self.__template} encountered error: {get_jinja_message(self.__parent)}"
 			else:

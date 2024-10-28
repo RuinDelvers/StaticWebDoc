@@ -71,7 +71,7 @@ if __name__ == '__main__':
 		logger.error(exceptions.get_jinja_message(ex))
 		exit(1)
 	except StaticWebDoc.RenderError as ex:
-		logger.error(f"\n[Error] {type(ex).__name__}: {ex.message}", "red")
+		logger.error(f"\n[Error] {type(ex).__name__}: {ex.message}")
 		exit(1)
 	except Exception as ex:
 		traceback.print_exception(ex)

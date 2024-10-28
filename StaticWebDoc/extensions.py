@@ -2,6 +2,8 @@ import jinja2
 import pathlib
 import enum
 
+import StaticWebDoc as SWD
+
 from jinja2 import nodes
 
 
@@ -79,7 +81,7 @@ class EmbeddedDataExtension(jinja2.ext.Extension):
 		).set_lineno(lineno)
 
 	def handle(self, template_name, key, value, caller):
-		template_name = str(pathlib.Path(template_name).with_suffix("").as_posix())
+		template_name = SWD.template_to_name(template_name)
 		if isinstance(value, jinja2.Undefined):
 			raise ValueError(f"[{template_name}] Attempted to set value to undefined for key={key}")
 
@@ -107,7 +109,7 @@ class EmbeddedDataSectionExtension(jinja2.ext.Extension):
 
 	def _data_section_support(self, filename, name, caller):
 		self.environment.set_data_env(name)
-		filename = str(pathlib.Path(filename).with_suffix("").as_posix())
+		filename = SWD.template_to_name(filename)
 
 		if not self.environment.has_data(filename, name):
 			self.environment.add_data(filename, name, {})
