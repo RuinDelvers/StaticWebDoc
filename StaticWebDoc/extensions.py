@@ -1,9 +1,30 @@
 import jinja2
+import dataclasses
+import enum
 
 from jinja2.ext import Extension
 from jinja2 import nodes
 
-import json
+
+class JSON:
+	def default(self):
+		return { "type": type(self).__name__ }
+
+	def json_map(self):
+		return {}
+
+class JSONEnum(JSON, enum.Enum):
+	def default(self):
+		return { "type": "enum", "ename": type(self).__name__, "name": self.name, "value": self.value}
+
+class JSONEncoder:
+	def __call__(self, obj):
+		if isinstance(obj, JSON):
+			return obj.default()
+		else:
+			raise TypeError
+
+
 
 class FragmentCacheExtension(jinja2.ext.Extension):
 
@@ -30,16 +51,16 @@ class FragmentCacheExtension(jinja2.ext.Extension):
 		return nodes.CallBlock(
 			self.call_method("_cache_support", args), [], [], [block]
 		).set_lineno(lineno)
-			
 
-	def _cache_support(self, filename, name, caller):		
+
+	def _cache_support(self, filename, name, caller):
 		rv = caller()
 
 		if not self.environment.has_cache(filename, name):
 			self.environment.add_cache(filename, name, rv)
 
 		return ""
-	
+
 class EmbeddedDataExtension(jinja2.ext.Extension):
 
 	tags = {"data"}
@@ -48,7 +69,7 @@ class EmbeddedDataExtension(jinja2.ext.Extension):
 		lineno = next(parser.stream).lineno
 
 		args = [nodes.Const(parser.name)]
-		
+
 		key = parser.parse_expression()
 		args.append(nodes.Const(key.name))
 
@@ -62,9 +83,12 @@ class EmbeddedDataExtension(jinja2.ext.Extension):
 		).set_lineno(lineno)
 
 	def handle(self, template_name, key, value, caller):
+		if isinstance(value, jinja2.Undefined):
+			raise ValueError(f"[{template_name}] Attempted to set value to undefined for key={key}")
+
 		self.environment.get_data()[template_name][self.environment.data_env][key] = value
 		return ""
-	
+
 
 
 class EmbeddedDataSectionExtension(jinja2.ext.Extension):
@@ -82,7 +106,7 @@ class EmbeddedDataSectionExtension(jinja2.ext.Extension):
 		return nodes.CallBlock(
 			self.call_method("_data_section_support", args), [], [], body
 		).set_lineno(lineno)
-			
+
 
 	def _data_section_support(self, filename, name, caller):
 		self.environment.set_data_env(name)

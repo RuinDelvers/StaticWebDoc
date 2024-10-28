@@ -1,10 +1,13 @@
 import jinja2
 import pathlib
 import shutil
+import orjson
 
 import jinja2.filters
 
 import StaticWebDoc.extensions as extensions
+import StaticWebDoc.filters as filters
+import StaticWebDoc.logging as logging
 
 from StaticWebDoc.environment import CustomEnvironment
 from StaticWebDoc.exceptions import RenderError
@@ -19,8 +22,10 @@ DEFAULTE_RENDER_DIR = "render"
 DOCUMENT_DIR = "document"
 STYLE_DIR = "style"
 SCRIPT_DIR = "scripts"
+DATA_DIR = "data"
 IMAGE_DIR = "images"
-CACHE_FILE = "variables.json"
+CACHE_FILE = "fields.json"
+OBJECT_FILE = "objects.json"
 
 CURRENT_RENDERING_PROJECT = None
 GLOBAL_PROJECT_TYPES = []
@@ -31,10 +36,10 @@ def current_project():
 
 class Markupable:
 	""" Marker class to determine whether or not to call markup on when rendering."""
-	
+
 	def markup(self):
 		raise NotImplementedError(f"markup() not implemented for {type(self).__name__}")
-	
+
 	def __str__(self):
 		return self.markup()
 
@@ -101,15 +106,24 @@ class Project:
 	script_dir: str = SCRIPT_DIR
 	style_dir: str = STYLE_DIR
 	image_dir: str = IMAGE_DIR
+	data_dir: str = DATA_DIR
 	document_dir: str = DOCUMENT_DIR
 	env: jinja2.Environment | None = None
 	exts = []
 	global_vars = {}
+	template_filters = [filters.LastModified]
+	logger: logging.Logger = logging.DEFAULT
+
+	cache_file = CACHE_FILE
+	object_file = OBJECT_FILE
 
 	def __init__(self, root):
 		self.__input = pathlib.Path(root)/self.source
 		self.__output = pathlib.Path(root)/self.output
 		self.__docroot = self.__output/self.document_dir
+		self.__dataroot = self.__output/self.data_dir
+		self.__cache_file = self.__dataroot/self.cache_file
+		self.__object_file = self.__dataroot/self.object_file
 
 		if self.env is None:
 			self.env = CustomEnvironment(
@@ -121,21 +135,25 @@ class Project:
 					extensions.EmbeddedDataSectionExtension]
 					+ self.exts)
 
+		self.__filters = list(map(lambda x: x(self), self.template_filters))
+
 		self.__init_dirs()
 		self.__init_jinja_globals()
 
 		self.__rendered_templates = set()
-		self.__renderable_templates = set()
+		self.__renderable_templates = []
 
 		self.init()
 
 		self.__context_data = {}
 		self.__render_stack = []
 
+
+
 	def init(self):
 		pass
 
-	def __init_dirs(self):		
+	def __init_dirs(self):
 		(self.__output/self.script_dir).mkdir(exist_ok=True, parents=True)
 		(self.__output/self.image_dir).mkdir(exist_ok=True, parents=True)
 		(self.__output/self.style_dir).mkdir(exist_ok=True, parents=True)
@@ -157,7 +175,7 @@ class Project:
 
 		self.add_global("style", _style)
 		self.add_global("link", _link)
-		self.add_global("markup", lambda text: _get_markup(text))		
+		self.add_global("markup", lambda text: _get_markup(text))
 		self.add_global(self.pop_context_data.__name__, self.pop_context_data)
 		self.add_global(self.set_context_data.__name__, self.set_context_data)
 		self.add_global(self.get_context_data.__name__, self.get_context_data)
@@ -177,7 +195,7 @@ class Project:
 			else:
 				self.add_global(obj.__name__, obj)
 
-	
+
 
 	def link_to_topic(self, template_name, display=None):
 		inpath = pathlib.Path(template_name)
@@ -203,7 +221,7 @@ class Project:
 		if template not in cache:
 			self.__render_inner(template)
 
-		if template not in cache:			
+		if template not in cache:
 			raise ValueError(f"Template '{template}' does not have key '{key}'")
 
 		if key in cache[template]:
@@ -225,21 +243,31 @@ class Project:
 		if len(self.__renderable_templates) == 0:
 			path = pathlib.Path(self.__input)
 
-			self.__renderable_templates = set(self.env.list_templates(filter_func=_is_renderable_template))
+			self.__renderable_templates = list(self.env.list_templates(filter_func=_is_renderable_template))
 
 		return self.__renderable_templates
+
+	def filtered_templates(self):
+		for temp in self.renderable_templates():
+			if all(map(lambda x: x(self.__input/temp, self.output_file(temp)), self.__filters)):
+				yield temp
+
+	def output_file(self, template_name):
+		path = self.__docroot/template_name
+		path = path.with_suffix(".html")
+
+		return path
 
 	def __render_inner(self, template_name):
 		if template_name in self.__rendered_templates:
 			return
 
-		path = self.__docroot/template_name
-		path = path.with_suffix(".html")
+		path = self.output_file(template_name)
 		path.parent.mkdir(exist_ok=True, parents=True)
 
 		with open(str(path), 'w') as output:
 			self.__render_stack.append(template_name)
-			print(colored(f"[Render] {template_name}", "blue"))
+			self.logger.normal(f"[Render] {template_name}", "blue")
 
 			did_render = False
 
@@ -275,7 +303,7 @@ class Project:
 			self.__context_data[context_name][-1] = value
 		else:
 			self.__context_data[context_name] = [value]
-		
+
 	def get_context_data(self, context_name):
 		if context_name in self.__context_data:
 			return self.__context_data[context_name][-1]
@@ -285,9 +313,9 @@ class Project:
 	def current_template(self):
 		return self.__render_stack[-1]
 
-	def env_data(self, env_key, key=None):
+	def env_data(self, env_key, key=None, default=None, template=None):
 		data = self.env.get_data()
-		ctemp = self.current_template()
+		ctemp = self.current_template() if template is None else template
 
 		if ctemp in data:
 			envs = data[ctemp]
@@ -299,27 +327,60 @@ class Project:
 				else:
 					return env_data
 
+		return default
+
 	@property
 	def output_dir(self):
 		return self.__output
-	
+
 	@property
 	def input_dir(self):
 		return self.__input
 
-	@property
-	def cache_file(self):
-		return pathlib.Path(self.__output)/CACHE_FILE
-	
-
 	def __clean_render_dir(self):
 		if self.__docroot.exists():
+			self.logger.normal(f'- Removing directory: {self.__docroot}')
 			shutil.rmtree(self.__docroot)
 
-		self.cache_file.unlink(missing_ok=True)
+		if self.__dataroot.exists():
+			self.logger.normal(f'- Removing directory: {self.__dataroot}')
+			shutil.rmtree(self.__dataroot)
 
 	def clean(self):
 		self.__clean_render_dir()
+
+	def __load_data(self):
+		if self.__cache_file.exists():
+			with open(self.__cache_file, 'r') as read:
+				self.env.load_cache(orjson.loads(read.read()))
+
+		if self.__object_file.exists():
+			with open(self.__object_file, 'r') as read:
+				self.env.load_data(orjson.loads(read.read()))
+
+	def __filter_data(self):
+		for temp in self.filtered_templates():
+			self.env.clear_cache(key=temp)
+			self.env.clear_data(key=temp)
+
+	def __write_data(self):
+		self.__dataroot.mkdir(exist_ok=True, parents=True)
+
+		with open(self.__cache_file, 'wb') as output:
+			value = orjson.dumps(self.env.get_cache(), option=orjson.OPT_INDENT_2)
+			output.write(value)
+
+		with open(self.__object_file, 'wb') as output:
+			encoder = extensions.JSONEncoder()
+			value = orjson.dumps(
+				self.env.get_data(),
+				option=orjson.OPT_INDENT_2 | orjson.OPT_NON_STR_KEYS | orjson.OPT_PASSTHROUGH_SUBCLASS,
+				  default=encoder)
+			output.write(value)
+
+
+	def pre_process(self):
+		pass
 
 	def post_process(self):
 		pass
@@ -328,20 +389,20 @@ class Project:
 		global CURRENT_RENDERING_PROJECT
 
 		if CURRENT_RENDERING_PROJECT is not None:
-			raise ValueError("Another project is already rendering.")		
-		
+			raise ValueError("Another project is already rendering.")
+
 		CURRENT_RENDERING_PROJECT = self
+		self.__load_data()
+		self.__filter_data()
+		self.pre_process()
 
-		self.__clean_render_dir()
-		work_num = len(self.renderable_templates())
-
-		for template in self.renderable_templates():
+		for template in self.filtered_templates():
 			self.__render_inner(template)
 
-		self.env.clear_cache()
 		self.__rendered_templates = set()
-		self.__renderable_templates = set()
+		self.__renderable_templates = []
 
+		self.__write_data()
 		self.post_process()
 
 		CURRENT_RENDERING_PROJECT = None

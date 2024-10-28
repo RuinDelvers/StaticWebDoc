@@ -8,6 +8,7 @@ import traceback
 import jinja2
 from termcolor import colored
 from . import exceptions
+from .logging import DEFAULT as logger
 
 class App:
 	def __init__(self):
@@ -34,15 +35,15 @@ class App:
 				root = pathlib.Path(p)
 				self.__run_single(root, args)
 
-		
+
 
 	def __run_single(self, root, args):
-		print(f"Searching for projects in directory {root}")
+		logger.normal(f"Searching for projects in directory {root}")
 
 		projectfile = root
 
 		if projectfile.exists():
-			print(f"- Found project file: {projectfile}")
+			logger.normal(f"- Found project file: {projectfile}")
 
 		spec = importlib.util.spec_from_file_location(projectfile.name, projectfile/"__init__.py")
 		code = importlib.util.module_from_spec(spec)
@@ -52,25 +53,27 @@ class App:
 			obj = getattr(code, var)
 			if type(obj) == type(StaticWebDoc.Project):
 				if obj != StaticWebDoc.Project and issubclass(obj, StaticWebDoc.Project):
-					print(f"- Found project declaration: {obj.__name__}")
+					logger.normal(f"- Found project declaration: {obj.__name__}")
 					project = obj(root)
 					if args.clean:
-						print(f"- Clearing output directory: {obj.__name__}")
+						logger.normal(f"- Clearing output directory: {obj.__name__}")
 						project.clean();
 					else:
 						project.render()
+
+						logger.normal("[Finished]", "green")
 
 
 if __name__ == '__main__':
 	try:
 		App().run()
 	except jinja2.exceptions.TemplateError as ex:
-		print(colored(exceptions.get_jinja_message(ex), "red"))
+		logger.error(exceptions.get_jinja_message(ex))
 		exit(1)
 	except StaticWebDoc.RenderError as ex:
-		print(colored(f"\n[Error] {type(ex).__name__}: {ex.message}", "red"))
+		logger.error(f"\n[Error] {type(ex).__name__}: {ex.message}", "red")
 		exit(1)
 	except Exception as ex:
 		traceback.print_exception(ex)
-		print(colored(f"\n[Error] {type(ex).__name__}", "red"))		
+		logger.error(f"\n[Error] {type(ex).__name__}")
 		exit(1)
