@@ -11,9 +11,13 @@ class JSON:
 	def json(self):
 		return { "type": type(self).__name__ }
 
-class JSONEnum(JSON, enum.Enum):
+class JSONEnumValue(JSON):
+	def __init__(self, name, value):
+		self.name = name
+		self.value = value
+
 	def json(self):
-		return { "type": "enum", "ename": type(self).__name__, "name": self.name, "value": self.value}
+		return { "type": "enum", "name": self.name, "value": self.value}
 
 class JSONEncoder:
 	def __call__(self, obj):
