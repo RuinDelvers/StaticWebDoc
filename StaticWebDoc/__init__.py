@@ -69,12 +69,12 @@ def template_to_name(template_name, root=None, base_only=False):
 
 	if root is None:
 		if base_only:
-			return p.with_suffix("").as_posix().name
+			return p.with_suffix("").name
 		else:
 			return p.with_suffix("").as_posix()
 	else:
 		if base_only:
-			return p.relative_to(root).with_suffix("").as_posix().name
+			return p.relative_to(root).with_suffix("").name
 		else:
 			return p.relative_to(root).with_suffix("").as_posix()
 
