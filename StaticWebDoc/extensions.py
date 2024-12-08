@@ -3,13 +3,32 @@ import pathlib
 import enum
 
 import StaticWebDoc as SWD
+import dataclasses
+import typing
 
 from jinja2 import nodes
+
+@dataclasses.dataclass
+class JSONValue:
+	value: typing.Any
 
 
 class JSON:
 	def json(self):
-		return { "type": type(self).__name__ }
+		serial = { "type": type(self).__name__ }
+
+		for attr in dir(self):
+			obj = getattr(self, attr)
+			if isinstance(obj, JSONValue):
+				serial[attr] = obj.value
+
+		return serial
+
+class ObjectAsArray:
+	"""
+	Mark class used to update object data and store it in an array even when set as a singular object.
+	"""
+	pass
 
 class JSONEnumValue(JSON):
 	def __init__(self, name, value):
@@ -88,6 +107,8 @@ class EmbeddedDataExtension(jinja2.ext.Extension):
 		template_name = SWD.template_to_name(template_name)
 		if isinstance(value, jinja2.Undefined):
 			raise ValueError(f"[{template_name}] Attempted to set value to undefined for key={key}")
+		if isinstance(value, ObjectAsArray):
+			value = [value]
 
 		self.environment.get_data()[template_name][self.environment.data_env][key] = value
 		return ""

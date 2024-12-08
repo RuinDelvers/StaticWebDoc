@@ -31,6 +31,7 @@ OBJECT_FILE = "objects.json"
 CURRENT_RENDERING_PROJECT = None
 GLOBAL_PROJECT_TYPES = []
 GLOBAL_FUNCTIONS = []
+GLOBAL_FILTERS = []
 
 def current_project():
 	return CURRENT_RENDERING_PROJECT
@@ -94,6 +95,16 @@ def proj_fn(name):
 		GLOBAL_FUNCTIONS.append(name)
 		return name
 
+def proj_filter(name):
+	if type(name) == str:
+		def inner(fn):
+			GLOBAL_FILTERS.append((name, fn))
+			return fn
+		return inner
+	else:
+		GLOBAL_FILTERS.append(name)
+		return name
+
 def proj_type(value):
 	value.is_project_defined_type = True
 
@@ -114,6 +125,8 @@ class Project:
 	global_vars = {}
 	template_filters = [filters.LastModified]
 	logger: logging.Logger = logging.DEFAULT
+
+	json_flags: int = orjson.OPT_INDENT_2
 
 	cache_file = CACHE_FILE
 	object_file = OBJECT_FILE
@@ -195,6 +208,13 @@ class Project:
 				self.add_global(name, fn)
 			else:
 				self.add_global(obj.__name__, obj)
+
+		for obj in GLOBAL_FILTERS:
+			if isinstance(obj, tuple):
+				name, fn = obj
+				self.env.filters[name] = fn
+			else:
+				self.env.filters[obj.__name__] = obj
 
 
 
@@ -375,7 +395,7 @@ class Project:
 			encoder = extensions.JSONEncoder()
 			value = orjson.dumps(
 				self.env.get_data(),
-				option=orjson.OPT_INDENT_2 | orjson.OPT_NON_STR_KEYS | orjson.OPT_PASSTHROUGH_SUBCLASS,
+				option=self.json_flags,
 				  default=encoder)
 			output.write(value)
 
@@ -413,6 +433,7 @@ __all__ = [
 	"Project",
 	"proj_fn",
 	"proj_type",
+	"proj_filter",
 	"Markupable",
 	"current_project"
 ]
