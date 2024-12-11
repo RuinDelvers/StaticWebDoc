@@ -149,6 +149,8 @@ class Project:
 					extensions.EmbeddedDataSectionExtension]
 					+ self.exts)
 
+		self.env.undefined = jinja2.StrictUndefined
+
 		self.__filters = list(map(lambda x: x(self), self.template_filters))
 
 		self.__init_dirs()
