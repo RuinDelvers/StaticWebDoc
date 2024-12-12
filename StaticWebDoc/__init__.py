@@ -102,10 +102,16 @@ def proj_type(value):
 
 	return value
 
+def project_template_path():
+	return pathlib.Path(__file__).parent/"template"
+
+def initialize_project(path):
+	shutil.copytree(project_template_path(), path)
+
 class Project:
 	source: str = DEFAULT_TEMPLATE_DIR
 	output: str = DEFAULT_RENDER_DIR
-	modules: str = DEFAULT_MODULE_DIR
+	modules_dir: str = DEFAULT_MODULE_DIR
 	script_dir: str = SCRIPT_DIR
 	style_dir: str = STYLE_DIR
 	image_dir: str = IMAGE_DIR
@@ -114,6 +120,7 @@ class Project:
 	env: jinja2.Environment | None = None
 	exts = []
 	global_vars = {}
+	modules = []
 	template_filters = [filters.LastModified]
 	logger: logging.Logger = logging.DEFAULT
 
@@ -123,13 +130,12 @@ class Project:
 	object_file = OBJECT_FILE
 
 	def __init__(self, root):
+		self.__proj_root = root
 		self.__input = pathlib.Path(root)/self.source
 		self.__output = pathlib.Path(root)/self.output
-		self.__modules = pathlib.Path(root)/self.modules
+		self.__modules = pathlib.Path(root)/self.modules_dir
 		self.__docroot = self.__output/self.document_dir
 		self.__dataroot = self.__output/self.data_dir
-		self.__cache_file = self.__dataroot/self.cache_file
-		self.__object_file = self.__dataroot/self.object_file
 
 		if self.env is None:
 			self.env = CustomEnvironment(
@@ -146,7 +152,6 @@ class Project:
 
 		self.__filters = list(map(lambda x: x(self), self.template_filters))
 
-		self.__init_dirs()
 		self.__init_jinja_globals()
 
 		self.__rendered_templates = set()
@@ -157,15 +162,8 @@ class Project:
 		self.__context_data = {}
 		self.__render_stack = []
 
-
-
 	def init(self):
 		pass
-
-	def __init_dirs(self):
-		(self.__output/self.script_dir).mkdir(exist_ok=True, parents=True)
-		(self.__output/self.image_dir).mkdir(exist_ok=True, parents=True)
-		(self.__output/self.style_dir).mkdir(exist_ok=True, parents=True)
 
 	def add_global(self, key, item):
 		if key in self.env.globals:

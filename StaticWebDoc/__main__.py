@@ -23,17 +23,40 @@ class App:
 			"project_dir", type=str, nargs="*", default=os.getcwd())
 		self.__parser.add_argument(
 			"--clean", "-c", action="store_true")
+		self.__parser.add_argument(
+			"--init", action="store_true")
+
+		self.__parser.add_argument(
+			"--server", action="store_true", help="Starts up a testing HTTP server. Do not use in production.")
 
 	def run(self):
 		args = self.__parser.parse_args()
 
-		if len(args.project_dir) == 0:
-			root = pathlib.Path(os.getcwd())
-			self.__run_single(root, args)
+		if args.server:
+			import StaticWebDoc.server as serv
+			if len(args.project_dir) == 0:
+				root = pathlib.Path(os.getcwd())
+				serv.main(os.getcwd())
+			else:
+				root = pathlib.Path(args.project_dir[0])
+				serv.main(root)
 		else:
-			for p in args.project_dir:
-				root = pathlib.Path(p)
-				self.__run_single(root, args)
+			if args.init:
+				for p in args.project_dir:
+					root = pathlib.Path(p).absolute()
+					if root.exists():
+						logger.error(f"Path {root} already exists: Skipping init for this path.")
+					else:
+						logger.normal(f"Initializing swd project at {root}")
+						StaticWebDoc.initialize_project(root)
+			else:
+				if len(args.project_dir) == 0:
+					root = pathlib.Path(os.getcwd())
+					self.__run_single(root, args)
+				else:
+					for p in args.project_dir:
+						root = pathlib.Path(p)
+						self.__run_single(root, args)
 
 
 
