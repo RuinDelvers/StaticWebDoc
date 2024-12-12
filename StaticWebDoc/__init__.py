@@ -19,7 +19,8 @@ OUTPUT_EXTENSION = ".html"
 CLASS_EXTENSION = ".class"
 
 DEFAULT_TEMPLATE_DIR = "template"
-DEFAULTE_RENDER_DIR = "render"
+DEFAULT_RENDER_DIR = "render"
+DEFAULT_MODULE_DIR = "modules"
 DOCUMENT_DIR = "document"
 STYLE_DIR = "style"
 SCRIPT_DIR = "scripts"
@@ -28,13 +29,10 @@ IMAGE_DIR = "images"
 CACHE_FILE = "fields.json"
 OBJECT_FILE = "objects.json"
 
-CURRENT_RENDERING_PROJECT = None
+# Global types/functions that have been added to be made available for use.
 GLOBAL_PROJECT_TYPES = []
 GLOBAL_FUNCTIONS = []
 GLOBAL_FILTERS = []
-
-def current_project():
-	return CURRENT_RENDERING_PROJECT
 
 class Markupable:
 	""" Marker class to determine whether or not to call markup on when rendering."""
@@ -45,15 +43,7 @@ class Markupable:
 	def __str__(self):
 		return self.markup()
 
-def _is_class_template(path):
-	values = map(lambda x: x[0] == x[1], zip(path.suffixes, ('.class', '.jinja')))
 
-	return all(values)
-
-def _is_renderable_template(path):
-	if type(path) == str:
-		path = pathlib.Path(path)
-	return not _is_class_template(path)
 
 def _style(path):
 	return jinja2.filters.Markup(f'<link rel="stylesheet" type="text/css" href="/style/{path}">')
@@ -114,7 +104,8 @@ def proj_type(value):
 
 class Project:
 	source: str = DEFAULT_TEMPLATE_DIR
-	output: str = DEFAULTE_RENDER_DIR
+	output: str = DEFAULT_RENDER_DIR
+	modules: str = DEFAULT_MODULE_DIR
 	script_dir: str = SCRIPT_DIR
 	style_dir: str = STYLE_DIR
 	image_dir: str = IMAGE_DIR
@@ -134,6 +125,7 @@ class Project:
 	def __init__(self, root):
 		self.__input = pathlib.Path(root)/self.source
 		self.__output = pathlib.Path(root)/self.output
+		self.__modules = pathlib.Path(root)/self.modules
 		self.__docroot = self.__output/self.document_dir
 		self.__dataroot = self.__output/self.data_dir
 		self.__cache_file = self.__dataroot/self.cache_file
@@ -141,7 +133,7 @@ class Project:
 
 		if self.env is None:
 			self.env = CustomEnvironment(
-				loader=jinja2.FileSystemLoader(self.__input),
+				loader=jinja2.FileSystemLoader([self.__input]),
 				autoescape=jinja2.select_autoescape(),
 				extensions=[
 					extensions.FragmentCacheExtension,
@@ -150,6 +142,7 @@ class Project:
 					+ self.exts)
 
 		self.env.undefined = jinja2.StrictUndefined
+		self.env.extend(project_extension="", project=self)
 
 		self.__filters = list(map(lambda x: x(self), self.template_filters))
 
@@ -185,13 +178,11 @@ class Project:
 		self.add_global("script_dir", self.script_dir)
 		self.add_global("image_dir", self.image_dir)
 		self.add_global("document_dir", self.document_dir)
-		self.add_global("get_field", self.__get_field)
-		self.add_global("link_to", self.link_to_topic)
 		self.add_global("template_name", template_to_name)
 
 		self.add_global("style", _style)
 		self.add_global("link", _link)
-		self.add_global("markup", lambda text: _get_markup(text))
+		self.add_global("markup", _get_markup)
 		self.add_global(self.pop_context_data.__name__, self.pop_context_data)
 		self.add_global(self.set_context_data.__name__, self.set_context_data)
 		self.add_global(self.get_context_data.__name__, self.get_context_data)
@@ -201,15 +192,16 @@ class Project:
 		for key, value in self.global_vars.items():
 			self.add_global(key, value)
 
-		for obj in GLOBAL_PROJECT_TYPES:
-			self.add_global(obj.__name__, obj)
+		for gtype in GLOBAL_PROJECT_TYPES:
+			gtype.project = property(lambda _: self)
+			self.add_global(gtype.__name__, gtype)
 
-		for obj in GLOBAL_FUNCTIONS:
-			if isinstance(obj, tuple):
-				name, fn = obj
-				self.add_global(name, fn)
+		for fn in GLOBAL_FUNCTIONS:
+			if isinstance(fn, tuple):
+				name, bound = fn
+				self.add_global(name, bound)
 			else:
-				self.add_global(obj.__name__, obj)
+				self.__add_proj_fn(fn.__name__, fn)
 
 		for obj in GLOBAL_FILTERS:
 			if isinstance(obj, tuple):
@@ -218,55 +210,33 @@ class Project:
 			else:
 				self.env.filters[obj.__name__] = obj
 
+		# After extensions have been applied, we search through extended objects to see if any of them
+		# have callables. If so we add them as global callable functions.
+		for v in dir(self.env):
+			obj = getattr(self.env, v)
+			if isinstance(obj, extensions.HasCallables):
+				for name, call in obj.get_callables().items():
+					self.add_global(name, call)
 
+	def __add_proj_fn(self, name, fn):
+		self.add_global(name, lambda *args, **kwds: fn(self, *args, **kwds))
 
-	def link_to_topic(self, template_name, display=None):
-		inpath = pathlib.Path(template_name)
-
-		if inpath.suffix != TEMPLATE_EXTENSION:
-			template_name += ".jinja"
-
-		if display is None:
-			display = self.__get_field(template_name, "name")
-
-		path = self.__template_to_outpath(template_name)
-
-		return jinja2.filters.Markup(f"<a href={path}>{display}</a>")
-
-	def __get_field(self, template, key):
-		cache = self.env.get_cache()
-
-		checkpath = pathlib.Path(template)
-
-		if checkpath.suffix != TEMPLATE_EXTENSION:
-			template += TEMPLATE_EXTENSION
-
-		if template not in cache:
-			self.__render_inner(template)
-
-		if template not in cache:
-			raise ValueError(f"Template '{template}' does not have key '{key}'")
-
-		if key in cache[template]:
-			return cache[template][key].strip()
-		else:
-			raise ValueError(f"Template '{template}' does not have key '{key}'")
-
-	def __path_to_template(self, path):
-		return str(path.relative_to(self.__input).as_posix())
-
-	def __template_to_outpath(self, template_name):
+	def template_to_outpath(self, template_name):
 		path = pathlib.Path(self.__docroot)/template_name
 		path = path.with_suffix(OUTPUT_EXTENSION)
 
 		# Need to make sure that this is considered from the root of the website.
 		return f"/document/{path.relative_to(self.__docroot)}"
 
+	def is_renderable_template(self, template):
+		if type(template) == str:
+			path = pathlib.Path(template)
+
+		return path.suffixes == [TEMPLATE_EXTENSION] and not pathlib.Path(template).is_relative_to(self.__modules)
+
 	def renderable_templates(self):
 		if len(self.__renderable_templates) == 0:
-			path = pathlib.Path(self.__input)
-
-			self.__renderable_templates = list(self.env.list_templates(filter_func=_is_renderable_template))
+			self.__renderable_templates = list(self.env.list_templates(filter_func=self.is_renderable_template))
 
 		return self.__renderable_templates
 
@@ -281,7 +251,7 @@ class Project:
 
 		return path
 
-	def __render_inner(self, template_name):
+	def request_render(self, template_name):
 		if template_name in self.__rendered_templates:
 			return
 
@@ -337,7 +307,7 @@ class Project:
 		return self.__render_stack[-1]
 
 	def env_data(self, env_key, key=None, default=None, template=None):
-		data = self.env.get_data()
+		data = self.env.embedded_data
 		ctemp = template_to_name(self.current_template()) if template is None else template
 
 		if ctemp in data:
@@ -360,7 +330,7 @@ class Project:
 	def input_dir(self):
 		return self.__input
 
-	def __clean_render_dir(self):
+	def clean(self):
 		if self.__docroot.exists():
 			self.logger.normal(f'- Removing directory: {self.__docroot}')
 			shutil.rmtree(self.__docroot)
@@ -369,9 +339,7 @@ class Project:
 			self.logger.normal(f'- Removing directory: {self.__dataroot}')
 			shutil.rmtree(self.__dataroot)
 
-	def clean(self):
-		self.__clean_render_dir()
-
+	"""
 	def __load_data(self):
 		if self.__cache_file.exists():
 			with open(self.__cache_file, 'r') as read:
@@ -380,26 +348,15 @@ class Project:
 		if self.__object_file.exists():
 			with open(self.__object_file, 'r') as read:
 				self.env.load_data(orjson.loads(read.read()))
-
-	def __filter_data(self):
-		for temp in self.filtered_templates():
-			self.env.clear_cache(key=temp)
-			self.env.clear_data(key=temp)
+	"""
 
 	def __write_data(self):
 		self.__dataroot.mkdir(exist_ok=True, parents=True)
 
-		with open(self.__cache_file, 'wb') as output:
-			value = orjson.dumps(self.env.get_cache(), option=orjson.OPT_INDENT_2)
-			output.write(value)
-
-		with open(self.__object_file, 'wb') as output:
-			encoder = extensions.JSONEncoder()
-			value = orjson.dumps(
-				self.env.get_data(),
-				option=self.json_flags,
-				  default=encoder)
-			output.write(value)
+		for v in dir(self.env):
+			obj = getattr(self.env, v)
+			if isinstance(obj, extensions.DataExtensionObject):
+				obj.write(self.__dataroot)
 
 
 	def pre_process(self):
@@ -411,17 +368,12 @@ class Project:
 	def render(self):
 		global CURRENT_RENDERING_PROJECT
 
-		if CURRENT_RENDERING_PROJECT is not None:
-			raise ValueError("Another project is already rendering.")
-
 		CURRENT_RENDERING_PROJECT = self
-		#self.__load_data()
-		#self.__filter_data()
-		self.__clean_render_dir()
+		self.clean()
 		self.pre_process()
 
 		for template in self.renderable_templates():
-			self.__render_inner(template)
+			self.request_render(template)
 
 		self.__rendered_templates = set()
 		self.__renderable_templates = []
@@ -429,13 +381,10 @@ class Project:
 		self.__write_data()
 		self.post_process()
 
-		CURRENT_RENDERING_PROJECT = None
-
 __all__ = [
 	"Project",
 	"proj_fn",
 	"proj_type",
 	"proj_filter",
 	"Markupable",
-	"current_project"
 ]
