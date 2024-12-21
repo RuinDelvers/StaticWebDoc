@@ -234,13 +234,17 @@ class EmbeddedData(SimpleCache):
 		self.cache[template[0]][self.data_env][template[1]] = data
 
 	def write(self, data_path):
-		with open(data_path/"objects.json", 'wb') as output:
-			encoder = JSONEncoder()
-			value = orjson.dumps(
-				self.cache,
-				option=self.env.project.json_flags,
-				  default=encoder)
-			output.write(value)
+		for (template, data) in self.cache.items():
+			path = (data_path/template).with_suffix(".json")
+			path.parent.mkdir(parents=True, exist_ok=True)
+
+			with open(path, 'wb') as output:
+				encoder = JSONEncoder()
+				value = orjson.dumps(
+					data,
+					option=self.env.project.json_flags,
+					default=encoder)
+				output.write(value)
 
 class EmbeddedDataExtension(jinja2.ext.Extension):
 
