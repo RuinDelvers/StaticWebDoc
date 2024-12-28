@@ -26,6 +26,7 @@ STYLE_DIR = "style"
 SCRIPT_DIR = "scripts"
 DATA_DIR = "data"
 IMAGE_DIR = "images"
+DEFAULT_BUILD_DIR = "build"
 CACHE_FILE = "fields.json"
 OBJECT_FILE = "objects.json"
 
@@ -42,8 +43,6 @@ class Markupable:
 
 	def __str__(self):
 		return self.markup()
-
-
 
 def _style(path):
 	return jinja2.filters.Markup(f'<link rel="stylesheet" type="text/css" href="/style/{path}">')
@@ -111,6 +110,7 @@ def initialize_project(path):
 class Project:
 	source: str = DEFAULT_TEMPLATE_DIR
 	output: str = DEFAULT_RENDER_DIR
+	build: str = DEFAULT_BUILD_DIR
 	modules_dir: str = DEFAULT_MODULE_DIR
 	script_dir: str = SCRIPT_DIR
 	style_dir: str = STYLE_DIR
@@ -130,12 +130,18 @@ class Project:
 	object_file = OBJECT_FILE
 
 	def __init__(self, root):
+		root = pathlib.Path(root)
+
 		self.__proj_root = root
-		self.__input = pathlib.Path(root)/self.source
-		self.__output = pathlib.Path(root)/self.output
-		self.__modules = pathlib.Path(root)/self.modules_dir
+		self.__input = root/self.source
+		self.__output = root/self.output
+		self.__modules = root/self.modules_dir
+		self.__scripts = self.__proj_root/self.script_dir
+		self.__images = root/self.image_dir
+		self.__styles = root/self.style_dir
 		self.__docroot = self.__output/self.document_dir
 		self.__dataroot = self.__output/self.data_dir
+		self.__build_dir = self.__proj_root/f"../{self.build}"
 
 		if self.env is None:
 			self.env = CustomEnvironment(
@@ -161,6 +167,14 @@ class Project:
 
 		self.__context_data = {}
 		self.__render_stack = []
+
+	@property
+	def proj_root(self):
+		return self.__proj_root
+
+	@property
+	def template_dir(self):
+		return self.__input
 
 	def init(self):
 		pass
@@ -378,6 +392,14 @@ class Project:
 
 		self.__write_data()
 		self.post_process()
+
+	def package(self):
+		shutil.rmtree(self.__build_dir)
+
+		shutil.copytree(self.__output, self.__build_dir, dirs_exist_ok=True)
+		shutil.copytree(self.__scripts, self.__build_dir/SCRIPT_DIR, dirs_exist_ok=True)
+		shutil.copytree(self.__styles, self.__build_dir/STYLE_DIR, dirs_exist_ok=True)
+		shutil.copytree(self.__images, self.__build_dir/IMAGE_DIR, dirs_exist_ok=True)
 
 __all__ = [
 	"Project",

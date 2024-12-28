@@ -99,6 +99,10 @@ class SimpleCache(JSON, DataExtensionObject):
 		return True
 
 	@property
+	def data_prefix(self):
+		return "cache"
+
+	@property
 	def cache(self):
 		return self.__cache
 
@@ -123,16 +127,64 @@ class SimpleCache(JSON, DataExtensionObject):
 	def json(self):
 		return self.__cache
 
+	def write(self, data_path):
+		directories = {}
+		structure = {}
+
+		data_path = data_path/self.data_prefix
+
+		for (template, data) in self.cache.items():
+			path = (data_path/template).with_suffix(".json")
+			path.parent.mkdir(parents=True, exist_ok=True)
+
+			with open(path, 'wb') as output:
+				encoder = JSONEncoder()
+				value = orjson.dumps(
+					data,
+					option=self.env.project.json_flags,
+					default=encoder)
+				output.write(value)
+
+		files = list(data_path.rglob("*"))
+		files.append(data_path)
+
+		for f in files:
+			relf = f.relative_to(data_path)
+			root = structure
+
+			for p in relf.parts:
+				if p not in root:
+					root[p] = {}
+				root = root[p]
+
+			if f.is_dir():
+				if f not in directories:
+					directories[f] = []
+
+
+
+				for child in files:
+					if f == child.parent:
+						directories[f].append(child.relative_to(f).as_posix())
+
+
+		with open(data_path/"strcture.json", 'wb') as output:
+			output.write(orjson.dumps(structure, option=orjson.OPT_INDENT_2))
+
+		for d, f in directories.items():
+			with open(d/"files.json", 'wb') as output:
+				output.write(orjson.dumps(f))
+
+
+
 class FragmentCache(SimpleCache, HasCallables):
 	"""
 	A Cache of HTML strings that can be referenced by other templates when rendering.
 	"""
 
-	def write(self, data_path):
-		with open(data_path/"fields.json", 'wb') as output:
-			value = orjson.dumps(self.cache, option=orjson.OPT_INDENT_2)
-			output.write(value)
-
+	@property
+	def data_prefix(self):
+		return "fields"
 
 	@callable
 	def link_to(self, template_name, display=None):
@@ -211,6 +263,10 @@ class EmbeddedData(SimpleCache):
 		self.__current_env = None
 
 	@property
+	def data_prefix(self):
+		return "objects"
+
+	@property
 	def data_env(self):
 		if self.__current_env is None:
 			raise ValueError("Attempted to embed data in a null data environment.")
@@ -233,18 +289,7 @@ class EmbeddedData(SimpleCache):
 
 		self.cache[template[0]][self.data_env][template[1]] = data
 
-	def write(self, data_path):
-		for (template, data) in self.cache.items():
-			path = (data_path/template).with_suffix(".json")
-			path.parent.mkdir(parents=True, exist_ok=True)
 
-			with open(path, 'wb') as output:
-				encoder = JSONEncoder()
-				value = orjson.dumps(
-					data,
-					option=self.env.project.json_flags,
-					default=encoder)
-				output.write(value)
 
 class EmbeddedDataExtension(jinja2.ext.Extension):
 

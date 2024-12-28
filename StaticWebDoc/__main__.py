@@ -17,58 +17,64 @@ class App:
 			description="Compiles HTML template files into a static web site.")
 
 		self.__add_arguments()
+		self.__args = self.__parser.parse_args()
+		self.__directory = pathlib.Path(self.__args.project_dir[0])
 
 	def __add_arguments(self):
 		self.__parser.add_argument(
-			"project_dir", type=str, nargs="*", default=os.getcwd())
+			"project_dir", type=str, nargs=1, default=os.getcwd())
 		self.__parser.add_argument(
 			"--clean", "-c", action="store_true")
 		self.__parser.add_argument(
 			"--init", action="store_true")
-
+		self.__parser.add_argument(
+			"--package", action="store_true")
 		self.__parser.add_argument(
 			"--server", action="store_true", help="Starts up a testing HTTP server. Do not use in production.")
 
 	def run(self):
-		args = self.__parser.parse_args()
-
-		if args.server:
-			import StaticWebDoc.server as serv
-			if len(args.project_dir) == 0:
-				root = pathlib.Path(os.getcwd())
-				serv.main(os.getcwd())
-			else:
-				root = pathlib.Path(args.project_dir[0])
-				serv.main(root)
+		if self.args.server:
+			self.__server()
+		elif self.args.init:
+			self.__init_project()
+		elif self.args.clean:
+			self.__get_project()
+			logger.normal(f"- Clearing output directory: {type(self.__project).__name__}")
+			self.__project.clean()
+		elif self.args.package:
+			self.__get_project()
+			logger.normal(f"- Packaging project: {type(self.__project).__name__}")
+			self.__project.package()
 		else:
-			if args.init:
-				for p in args.project_dir:
-					root = pathlib.Path(p).absolute()
-					if root.exists():
-						logger.error(f"Path {root} already exists: Skipping init for this path.")
-					else:
-						logger.normal(f"Initializing swd project at {root}")
-						StaticWebDoc.initialize_project(root)
-			else:
-				if len(args.project_dir) == 0:
-					root = pathlib.Path(os.getcwd())
-					self.__run_single(root, args)
-				else:
-					for p in args.project_dir:
-						root = pathlib.Path(p)
-						self.__run_single(root, args)
+			self.__get_project()
+			self.__project.render()
+			logger.normal("[Finished]", "green")
 
+	@property
+	def proj_dir(self):
+		return self.__directory
 
+	@property
+	def args(self):
+		return self.__args
 
-	def __run_single(self, root, args):
-		logger.normal(f"Searching for projects in directory {root}")
+	def __server(self):
+		import StaticWebDoc.server as serv
+		root = pathlib.Path(self.proj_dir)
+		serv.main(root)
 
-		projectfile = root
+	def __init_project(self):
+		root = pathlib.Path(self.proj_dir).absolute()
+		logger.normal(f"Initializing SWD project at {root}")
+		StaticWebDoc.initialize_project(root)
 
-		if projectfile.exists():
-			logger.normal(f"- Found project file: {projectfile}")
+	def __get_project(self):
+		logger.normal(f"Searching for projects in directory {self.proj_dir}")
 
-		spec = importlib.util.spec_from_file_location(projectfile.name, projectfile/"__init__.py")
+		if self.proj_dir.exists():
+			logger.normal(f"- Found project file: {self.proj_dir}")
+
+		spec = importlib.util.spec_from_file_location(self.proj_dir.name, self.proj_dir/"__init__.py")
 		code = importlib.util.module_from_spec(spec)
 		spec.loader.exec_module(code)
 
@@ -77,14 +83,10 @@ class App:
 			if type(obj) == type(StaticWebDoc.Project):
 				if obj != StaticWebDoc.Project and issubclass(obj, StaticWebDoc.Project):
 					logger.normal(f"- Found project declaration: {obj.__name__}")
-					project = obj(root)
-					if args.clean:
-						logger.normal(f"- Clearing output directory: {obj.__name__}")
-						project.clean();
-					else:
-						project.render()
+					project = obj(self.proj_dir)
 
-						logger.normal("[Finished]", "green")
+					self.__project = project
+					return project
 
 
 if __name__ == '__main__':
