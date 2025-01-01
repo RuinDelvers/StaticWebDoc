@@ -142,6 +142,7 @@ class Project:
 		self.__docroot = self.__output/self.document_dir
 		self.__dataroot = self.__output/self.data_dir
 		self.__build_dir = self.__proj_root/f"../{self.build}"
+		self.__build_spec = {}
 
 		if self.env is None:
 			self.env = CustomEnvironment(
@@ -274,15 +275,13 @@ class Project:
 			self.__render_stack.append(template_name)
 			self.logger.normal(f"[Render] {template_name}", "blue")
 
-			did_render = False
-
 			try:
 				template = self.env.get_template(template_name)
 			except jinja2.TemplateNotFound as ex:
 				raise RenderError(template_name, ex)
 
 			try:
-				rendered_data = template.render()
+				rendered_data = template.render(**{'PARAMS': self.__build_spec})
 			except (jinja2.TemplateAssertionError, jinja2.exceptions.UndefinedError) as ex:
 				raise RenderError(template_name, ex)
 
@@ -377,8 +376,16 @@ class Project:
 	def post_process(self):
 		pass
 
-	def render(self):
+	def render(self, build_spec=None):
 		global CURRENT_RENDERING_PROJECT
+
+		if build_spec is None:
+			self.__build_spec = {}
+		else:
+			if isinstance(build_spec, str):
+				self.__build_spec = getattr(self, build_spec)
+			else:
+				self.__build_spec = build_spec
 
 		CURRENT_RENDERING_PROJECT = self
 		self.clean()
@@ -392,6 +399,7 @@ class Project:
 
 		self.__write_data()
 		self.post_process()
+		self.__build_spec = {}
 
 	def package(self):
 		shutil.rmtree(self.__build_dir)

@@ -24,6 +24,8 @@ class App:
 		self.__parser.add_argument(
 			"project_dir", type=str, nargs=1, default=os.getcwd())
 		self.__parser.add_argument(
+			"--build-spec", type=str, nargs=1, default=os.getcwd())
+		self.__parser.add_argument(
 			"--clean", "-c", action="store_true")
 		self.__parser.add_argument(
 			"--init", action="store_true")
