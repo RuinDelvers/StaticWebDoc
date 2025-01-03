@@ -402,7 +402,7 @@ class Project:
 		self.__build_spec = {}
 
 	def package(self):
-		shutil.rmtree(self.__build_dir)
+		shutil.rmtree(self.__build_dir, ignore_errors=True)
 
 		shutil.copytree(self.__output, self.__build_dir, dirs_exist_ok=True)
 		shutil.copytree(self.__scripts, self.__build_dir/SCRIPT_DIR, dirs_exist_ok=True)
