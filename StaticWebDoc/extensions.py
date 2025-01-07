@@ -124,6 +124,9 @@ class SimpleCache(JSON, DataExtensionObject):
 
 		self.__cache[template[0]][template[1]] = data
 
+	def set_field(self, template, data):
+		self[template] = data
+
 	def json(self):
 		return self.__cache
 
@@ -289,7 +292,11 @@ class EmbeddedData(SimpleCache):
 
 		self.cache[template[0]][self.data_env][template[1]] = data
 
+	def set_field(self, template, data_env, key, data):
+		self.cache[template][data_env][key] = data
 
+	def get_field(self, template, data_env, key):
+		return self.cache[template][data_env][key]
 
 class EmbeddedDataExtension(jinja2.ext.Extension):
 

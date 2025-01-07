@@ -187,6 +187,7 @@ class Project:
 		self.env.globals[key] = item
 
 	def __init_jinja_globals(self):
+		self.add_global("PROJECT", self)
 		self.add_global("style_dir", self.style_dir)
 		self.add_global("script_dir", self.script_dir)
 		self.add_global("image_dir", self.image_dir)
@@ -272,11 +273,11 @@ class Project:
 		path.parent.mkdir(exist_ok=True, parents=True)
 
 		with open(str(path), 'w') as output:
-			self.__render_stack.append(template_name)
 			self.logger.normal(f"[Render] {template_name}", "blue")
 
 			try:
 				template = self.env.get_template(template_name)
+				self.__render_stack.append(template_name)
 			except jinja2.TemplateNotFound as ex:
 				raise RenderError(template_name, ex)
 
@@ -317,6 +318,9 @@ class Project:
 	def current_template(self):
 		return self.__render_stack[-1]
 
+	def current_template_key(self):
+		return self.__render_stack[-1][:-len(TEMPLATE_EXTENSION)]
+
 	def env_data(self, env_key, key=None, default=None, template=None):
 		data = self.env.embedded_data
 		ctemp = template_to_name(self.current_template()) if template is None else template
@@ -349,17 +353,6 @@ class Project:
 		if self.__dataroot.exists():
 			self.logger.normal(f'- Removing directory: {self.__dataroot}')
 			shutil.rmtree(self.__dataroot)
-
-	"""
-	def __load_data(self):
-		if self.__cache_file.exists():
-			with open(self.__cache_file, 'r') as read:
-				self.env.load_cache(orjson.loads(read.read()))
-
-		if self.__object_file.exists():
-			with open(self.__object_file, 'r') as read:
-				self.env.load_data(orjson.loads(read.read()))
-	"""
 
 	def __write_data(self):
 		self.__dataroot.mkdir(exist_ok=True, parents=True)
