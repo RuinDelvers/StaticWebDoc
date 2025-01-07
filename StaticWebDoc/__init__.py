@@ -193,6 +193,7 @@ class Project:
 		self.add_global("image_dir", self.image_dir)
 		self.add_global("document_dir", self.document_dir)
 		self.add_global("template_name", template_to_name)
+		self.add_global("iter_template", self.iter_template)
 
 		self.add_global("style", _style)
 		self.add_global("link", _link)
@@ -244,15 +245,21 @@ class Project:
 
 	def is_renderable_template(self, template):
 		if type(template) == str:
-			path = pathlib.Path(template)
+			template = pathlib.Path(template)
 
-		return path.suffixes == [TEMPLATE_EXTENSION] and not pathlib.Path(template).is_relative_to(self.__modules)
+		return template.suffixes == [TEMPLATE_EXTENSION] and not template.is_relative_to(self.__modules)
 
 	def renderable_templates(self):
 		if len(self.__renderable_templates) == 0:
 			self.__renderable_templates = list(self.env.list_templates(filter_func=self.is_renderable_template))
 
 		return self.__renderable_templates
+
+	def iter_template(self, paths):
+		for f in self.__input.rglob(paths):
+			t = pathlib.Path(f).relative_to(self.__input)
+			if self.is_renderable_template(t):
+				yield t.as_posix()
 
 	def filtered_templates(self):
 		for temp in self.renderable_templates():
