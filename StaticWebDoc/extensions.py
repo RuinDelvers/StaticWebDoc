@@ -51,10 +51,14 @@ class JSON:
 	def json(self):
 		serial = { "type": type(self).__name__ }
 
-		for attr in dir(self):
-			obj = getattr(self, attr)
-			if isinstance(obj, JSONValue):
-				serial[attr] = obj.value
+		if dataclasses.is_dataclass(self):
+			value = dataclasses.asdict(self)
+			serial = {**serial, **value}
+		else:
+			for attr in dir(self):
+				obj = getattr(self, attr)
+				if isinstance(obj, JSONValue):
+					serial[attr] = obj.value
 
 		return serial
 
@@ -65,17 +69,15 @@ class ObjectAsArray:
 	pass
 
 class JSONEnumValue(JSON):
-	def __init__(self, name, value):
-		self.name = name
-		self.value = value
-
 	def json(self):
-		return { "type": "enum", "name": self.name, "value": self.value}
+		return self.name
 
 class JSONEncoder:
 	def __call__(self, obj):
 		if isinstance(obj, JSON):
 			return obj.json()
+		elif isinstance(obj, set):
+			return list(obj)
 		else:
 			raise TypeError
 
@@ -297,6 +299,27 @@ class EmbeddedData(SimpleCache):
 
 	def get_field(self, template, data_env, key):
 		return self.cache[template][data_env][key]
+
+	def write(self, data_path):
+		values = []
+		for (template, data) in self.cache.items():
+			try:
+				encoder = JSONEncoder()
+				value = orjson.dumps(
+					data,
+					option=self.env.project.json_flags,
+					default=encoder)
+				values.append(value)
+			except Exception as ex:
+				print(f"Failed serializing {template}")
+				raise ex
+
+		concat = b',\n'.join(values)
+		with open(data_path/"embedded_data.json", 'wb') as output:
+			output.write(b'[')
+			output.write(concat)
+			output.write(b']')
+
 
 class EmbeddedDataExtension(jinja2.ext.Extension):
 
