@@ -112,6 +112,8 @@ class SimpleCache(JSON, DataExtensionObject):
 		return f"{self.__class__.__name__}({str(self.__cache)})"
 
 	def __contains__(self, template):
+		if type(template) == tuple and len(template) == 2:
+			return template[0] in self.__cache and template[1] in self.__cache[template[0]]
 		return template in self.__cache
 
 	def __getitem__(self, template):
@@ -278,7 +280,6 @@ class EmbeddedData(SimpleCache):
 
 		return self.__current_env
 
-
 	@data_env.setter
 	def data_env(self, value):
 		self.__current_env = value
@@ -381,7 +382,7 @@ class EmbeddedDataSectionExtension(jinja2.ext.Extension):
 		self.environment.embedded_data.data_env = name
 		filename = SWD.template_to_name(filename)
 
-		self.environment.embedded_data[filename, name] = {}
+		#self.environment.embedded_data[filename, name] = {}
 		rv = caller()
 
 		self.environment.embedded_data.data_env = None
