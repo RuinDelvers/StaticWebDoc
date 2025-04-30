@@ -135,13 +135,31 @@ class SimpleCache(JSON, DataExtensionObject):
 		return self.__cache
 
 	def write(self, data_path):
-		directories = {}
-		structure = {}
+		#directories = {}
+		structure = { "type": "dir", "files": {}}
+
+		def add_file(file):
+			# If it is a file
+			section = structure
+			parts = file.parts
+
+			for i, p in enumerate(parts):
+				if p not in section["files"]:
+					if i == len(parts) - 1:
+						section["files"][p] = { "type": "file", "name": p}
+					else:
+						section["files"][p] = { "type": "dir", "files": {}, "name": p}
+
+				section = section["files"][p]
+
+
 
 		data_path = data_path/self.data_prefix
 
 		for (template, data) in self.cache.items():
+
 			path = (data_path/template).with_suffix(".json")
+			add_file(path.relative_to(data_path))
 			path.parent.mkdir(parents=True, exist_ok=True)
 
 			with open(path, 'wb') as output:
@@ -155,6 +173,7 @@ class SimpleCache(JSON, DataExtensionObject):
 		files = list(data_path.rglob("*"))
 		files.append(data_path)
 
+		"""
 		for f in files:
 			relf = f.relative_to(data_path)
 			root = structure
@@ -173,14 +192,17 @@ class SimpleCache(JSON, DataExtensionObject):
 				for child in files:
 					if f == child.parent:
 						directories[f].append(child.relative_to(f).as_posix())
+		"""
 
 
-		with open(data_path/"strcture.json", 'wb') as output:
+		with open(data_path/"structure.json", 'wb') as output:
 			output.write(orjson.dumps(structure, option=orjson.OPT_INDENT_2))
 
+		"""
 		for d, f in directories.items():
 			with open(d/"files.json", 'wb') as output:
 				output.write(orjson.dumps(f))
+		"""
 
 
 
