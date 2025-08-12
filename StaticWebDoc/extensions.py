@@ -173,36 +173,8 @@ class SimpleCache(JSON, DataExtensionObject):
 		files = list(data_path.rglob("*"))
 		files.append(data_path)
 
-		"""
-		for f in files:
-			relf = f.relative_to(data_path)
-			root = structure
-
-			for p in relf.parts:
-				if p not in root:
-					root[p] = {}
-				root = root[p]
-
-			if f.is_dir():
-				if f not in directories:
-					directories[f] = []
-
-
-
-				for child in files:
-					if f == child.parent:
-						directories[f].append(child.relative_to(f).as_posix())
-		"""
-
-
 		with open(data_path/"structure.json", 'wb') as output:
 			output.write(orjson.dumps(structure, option=orjson.OPT_INDENT_2))
-
-		"""
-		for d, f in directories.items():
-			with open(d/"files.json", 'wb') as output:
-				output.write(orjson.dumps(f))
-		"""
 
 
 

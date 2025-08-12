@@ -7,19 +7,33 @@ import pathlib
 import http.server as serv
 import contextlib
 import socket
+import traceback
 
+import StaticWebDoc.modules as modules
+
+# Needed here, because the router construct seems to delete the variable reference.
+LOADER = modules.ModuleLoader()
 REROUTE_PATH = pathlib.Path("/render")
 
 class SWD_Router(serv.SimpleHTTPRequestHandler):
+	def __init__(self, *args, directory=None, **kwargs):
+		super().__init__(*args, directory=directory, **kwargs)
+
 	def translate_path(self, path):
-		p = pathlib.Path(path).relative_to("/")
+		if path.startswith("/@"):
+			path = path[1:]
+			module, _, tfile = LOADER.load_module(path)
 
-		if p.is_relative_to("document") or p.is_relative_to("data"):
-			path = (REROUTE_PATH/p).as_posix()
-
-			return super().translate_path(path)
+			return module.get_file_path(tfile)
 		else:
-			return super().translate_path(path)
+			p = pathlib.Path(path).relative_to("/")
+
+			if p.is_relative_to("document") or p.is_relative_to("data"):
+				path = (REROUTE_PATH/p).as_posix()
+
+				return super().translate_path(path)
+			else:
+				return super().translate_path(path)
 
 def main(directory):
 	class SWD_Server(serv.ThreadingHTTPServer):

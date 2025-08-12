@@ -2,6 +2,8 @@ import jinja2
 import pathlib
 import shutil
 import orjson
+import dataclasses
+import htmlmin
 
 import jinja2.ext
 import jinja2.filters
@@ -9,10 +11,12 @@ import jinja2.filters
 import StaticWebDoc.extensions as extensions
 import StaticWebDoc.filters as filters
 import StaticWebDoc.logging as logging
+import StaticWebDoc.loader as loader
 
 from StaticWebDoc.environment import CustomEnvironment
 from StaticWebDoc.exceptions import RenderError
 from termcolor import colored
+from bs4 import BeautifulSoup as bs
 
 TEMPLATE_EXTENSION = ".jinja"
 OUTPUT_EXTENSION = ".html"
@@ -44,8 +48,20 @@ class Markupable:
 	def __str__(self):
 		return self.markup()
 
-def _style(path):
-	return jinja2.filters.Markup(f'<link rel="stylesheet" type="text/css" href="/style/{path}">')
+def _style(path: str) -> str:
+	if path.startswith("@"):
+		module, path = path[1:].split("/")
+		return jinja2.filters.Markup(f'<link rel="stylesheet" type="text/css" href="/@{module}/style/{path}">')
+	else:
+		return jinja2.filters.Markup(f'<link rel="stylesheet" type="text/css" href="/style/{path}">')
+
+def _script(path: str, type="module", defer=False) -> str:
+	if path.startswith("@"):
+		module, path = path[1:].split("/")
+		return jinja2.filters.Markup(f'<script src="/@{module}/scripts/{path}" type="{type}" {'defer' if defer else ''}></script>')
+		#return jinja2.filters.Markup(f'<link rel="stylesheet" type="text/css" href="/@{module}/style/{path}">')
+	else:
+		return jinja2.filters.Markup(f'<script src="/scripts/{path}" type="{type}" {'defer' if defer else ''}></script>')
 
 def _link(location, display_text, class_type=""):
 	path_check = pathlib.Path(location)
@@ -107,6 +123,10 @@ def project_template_path():
 def initialize_project(path):
 	shutil.copytree(project_template_path(), path)
 
+@dataclasses.dataclass(frozen=True)
+class BuildFlags:
+	beautify: bool = True
+
 class Project:
 	source: str = DEFAULT_TEMPLATE_DIR
 	output: str = DEFAULT_RENDER_DIR
@@ -123,7 +143,6 @@ class Project:
 	modules = []
 	template_filters = [filters.LastModified]
 	logger: logging.Logger = logging.DEFAULT
-
 	json_flags: int = orjson.OPT_INDENT_2
 
 	cache_file = CACHE_FILE
@@ -142,11 +161,12 @@ class Project:
 		self.__docroot = self.__output/self.document_dir
 		self.__dataroot = self.__output/self.data_dir
 		self.__build_dir = self.__proj_root/f"../{self.build}"
-		self.__build_spec = {}
+		self.__build_spec = None
 
 		if self.env is None:
+			env = CustomEnvironment()
 			self.env = CustomEnvironment(
-				loader=jinja2.FileSystemLoader([self.__input]),
+				loader=loader.CustomLoader([self.__input]),
 				autoescape=jinja2.select_autoescape(),
 				extensions=[
 					extensions.FragmentCacheExtension,
@@ -196,6 +216,7 @@ class Project:
 		self.add_global("iter_template", self.iter_template)
 
 		self.add_global("style", _style)
+		self.add_global("script", _script)
 		self.add_global("link", _link)
 		self.add_global("markup", _get_markup)
 		self.add_global(self.pop_context_data.__name__, self.pop_context_data)
@@ -293,7 +314,12 @@ class Project:
 			except (jinja2.TemplateAssertionError, jinja2.exceptions.UndefinedError) as ex:
 				raise RenderError(template_name, ex)
 
-			output.write(rendered_data)
+			if self.__build_spec.beautify:
+				soup = bs(rendered_data, features="html.parser")
+				output.write(soup.prettify())
+			else:
+				soup = htmlmin.minify(rendered_data, remove_empty_space=True)
+				output.write(soup)
 
 			self.__rendered_templates.update({template_name})
 			self.__render_stack.pop()
@@ -377,17 +403,16 @@ class Project:
 		pass
 
 	def render(self, build_spec=None):
-		global CURRENT_RENDERING_PROJECT
-
 		if build_spec is None:
-			self.__build_spec = {}
+			self.__build_spec = self.default_build_flags
 		else:
 			if isinstance(build_spec, str):
 				self.__build_spec = getattr(self, build_spec)
-			else:
+			elif isinstance(build_spec, BuildFlags):
 				self.__build_spec = build_spec
+			else:
+				self.__build_spec = self.default_build_flags
 
-		CURRENT_RENDERING_PROJECT = self
 		self.clean()
 		self.pre_process()
 
@@ -409,10 +434,15 @@ class Project:
 		shutil.copytree(self.__styles, self.__build_dir/STYLE_DIR, dirs_exist_ok=True)
 		shutil.copytree(self.__images, self.__build_dir/IMAGE_DIR, dirs_exist_ok=True)
 
+	@property
+	def default_build_flags(self):
+		return BuildFlags()
+
 __all__ = [
 	"Project",
 	"proj_fn",
 	"proj_type",
 	"proj_filter",
 	"Markupable",
+	"BuildFlags"
 ]
