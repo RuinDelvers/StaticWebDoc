@@ -2,6 +2,7 @@ import jinja2
 import orjson
 
 import StaticWebDoc as SWD
+import StaticWebDoc.utils as utils
 import dataclasses
 import typing
 import pathlib
@@ -382,3 +383,39 @@ class EmbeddedDataSectionExtension(jinja2.ext.Extension):
 		self.environment.embedded_data.data_env = None
 
 		return rv
+
+class ExternalModuleExtension(jinja2.ext.Extension):
+
+	tags = {"extern", "insert"}
+
+	def parse(self, parser):
+		lineno = next(parser.stream).lineno
+		template = parser.name
+		module_path = parser.parse_expression().value
+		split = module_path.split("/", 1)
+
+		if len(split) == 1:
+			template_path = f"@{module}/module.jinja"
+			style_path    = nodes.Const(utils.style(f"@{module}/module.css"))
+			script_path   = nodes.Const(utils.script(f"@{module}/module.js"))
+		else:
+			module, path  = split
+			template_path = f"@{module}/{path}.jinja"
+			style_path    = nodes.Const(utils.style(f"@{module}/{path}.css"))
+			script_path   = nodes.Const(utils.script(f"@{module}/{path}.js"))
+
+		match parser._tag_stack[-1]:
+			case "extern":
+				parser.stream.expect("name:as")
+				var_name = parser.parse_expression()
+				import_node = nodes.Import(nodes.Const(template_path), var_name.name, True)
+			case "insert":
+				import_node = nodes.Include(nodes.Const(template_path), True, False)
+
+		args = [style_path, script_path]
+		call_node = nodes.CallBlock(self.call_method("_render_html", args), [], [], [nodes.Const(None)])
+
+		return [import_node, call_node]
+
+	def _render_html(self, style, script, caller=None):
+		return f"{style}\n{script}"

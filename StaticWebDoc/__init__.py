@@ -12,6 +12,7 @@ import StaticWebDoc.extensions as extensions
 import StaticWebDoc.filters as filters
 import StaticWebDoc.logging as logging
 import StaticWebDoc.loader as loader
+import StaticWebDoc.utils as utils
 
 from StaticWebDoc.environment import CustomEnvironment
 from StaticWebDoc.exceptions import RenderError
@@ -48,20 +49,13 @@ class Markupable:
 	def __str__(self):
 		return self.markup()
 
-def _style(path: str) -> str:
-	if path.startswith("@"):
-		module, path = path[1:].split("/")
-		return jinja2.filters.Markup(f'<link rel="stylesheet" type="text/css" href="/@{module}/style/{path}">')
-	else:
-		return jinja2.filters.Markup(f'<link rel="stylesheet" type="text/css" href="/style/{path}">')
-
-def _script(path: str, type="module", defer=False) -> str:
-	if path.startswith("@"):
-		module, path = path[1:].split("/")
-		return jinja2.filters.Markup(f'<script src="/@{module}/scripts/{path}" type="{type}" {'defer' if defer else ''}></script>')
-		#return jinja2.filters.Markup(f'<link rel="stylesheet" type="text/css" href="/@{module}/style/{path}">')
-	else:
-		return jinja2.filters.Markup(f'<script src="/scripts/{path}" type="{type}" {'defer' if defer else ''}></script>')
+"""
+def _import_swd_module(proj, path):
+	module, path = path.split("/")
+	jinja2.filters.
+	style = _style(f"@{module}/style/{path}.css")
+	script = _script(f"@{module}/style/{path}.js")
+"""
 
 def _link(location, display_text, class_type=""):
 	path_check = pathlib.Path(location)
@@ -171,7 +165,8 @@ class Project:
 				extensions=[
 					extensions.FragmentCacheExtension,
 					extensions.EmbeddedDataExtension,
-					extensions.EmbeddedDataSectionExtension]
+					extensions.EmbeddedDataSectionExtension,
+					extensions.ExternalModuleExtension]
 					+ self.exts)
 
 		self.env.undefined = jinja2.StrictUndefined
@@ -215,8 +210,8 @@ class Project:
 		self.add_global("template_name", template_to_name)
 		self.add_global("iter_template", self.iter_template)
 
-		self.add_global("style", _style)
-		self.add_global("script", _script)
+		self.add_global("style", utils.style)
+		self.add_global("script", utils.script)
 		self.add_global("link", _link)
 		self.add_global("markup", _get_markup)
 		self.add_global(self.pop_context_data.__name__, self.pop_context_data)

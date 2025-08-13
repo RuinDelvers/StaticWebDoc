@@ -23,8 +23,6 @@ class ModuleLoader:
 			if mname in self.__modules:
 				return self.__modules[mname], mname, nested_template
 
-
-
 			module = importlib.import_module(mname)
 
 			if "__init__.py" not in module.__file__:

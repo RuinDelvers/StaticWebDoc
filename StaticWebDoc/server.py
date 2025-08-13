@@ -7,7 +7,6 @@ import pathlib
 import http.server as serv
 import contextlib
 import socket
-import traceback
 
 import StaticWebDoc.modules as modules
 
