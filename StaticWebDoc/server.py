@@ -20,10 +20,13 @@ class SWD_Router(serv.SimpleHTTPRequestHandler):
 
 	def translate_path(self, path):
 		if path.startswith("/@"):
-			path = path[1:]
-			module, _, tfile = LOADER.load_module(path)
+			module, _, tfile = LOADER.load_module(path[1:])
 
-			return module.get_file_path(tfile)
+			reroute = module.get_file_path(tfile)
+
+			print(f"- Module received, rerouting: {path} -> {reroute}")
+
+			return reroute
 		else:
 			p = pathlib.Path(path).relative_to("/")
 

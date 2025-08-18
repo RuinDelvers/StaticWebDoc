@@ -49,13 +49,6 @@ class Markupable:
 	def __str__(self):
 		return self.markup()
 
-"""
-def _import_swd_module(proj, path):
-	module, path = path.split("/")
-	jinja2.filters.
-	style = _style(f"@{module}/style/{path}.css")
-	script = _script(f"@{module}/style/{path}.js")
-"""
 
 def _link(location, display_text, class_type=""):
 	path_check = pathlib.Path(location)
@@ -213,6 +206,8 @@ class Project:
 		self.add_global("style", utils.style)
 		self.add_global("script", utils.script)
 		self.add_global("link", _link)
+		self.add_global("imported_styles", self.__print_imported_styles)
+		self.add_global("imported_scripts", self.__print_imported_scripts)
 		self.add_global("markup", _get_markup)
 		self.add_global(self.pop_context_data.__name__, self.pop_context_data)
 		self.add_global(self.set_context_data.__name__, self.set_context_data)
@@ -249,6 +244,14 @@ class Project:
 				for name, call in obj.get_callables().items():
 					self.add_global(name, call)
 
+	def __print_imported_scripts(self):
+		key = f"{extensions.ExternalModuleExtension.__module__}.{extensions.ExternalModuleExtension.__qualname__}"
+		return self.env.extensions[key].print_scripts()
+
+	def __print_imported_styles(self):
+		key = f"{extensions.ExternalModuleExtension.__module__}.{extensions.ExternalModuleExtension.__qualname__}"
+		return self.env.extensions[key].print_style()
+
 	def __add_proj_fn(self, name, fn):
 		self.add_global(name, lambda *args, **kwds: fn(self, *args, **kwds))
 
@@ -272,10 +275,14 @@ class Project:
 		return self.__renderable_templates
 
 	def iter_template(self, paths):
-		for f in self.__input.rglob(paths):
-			t = pathlib.Path(f).relative_to(self.__input)
-			if self.is_renderable_template(t):
-				yield t.as_posix()
+		if isinstance(paths, str):
+			paths = [paths]
+
+		for p in paths:
+			for f in self.__input.rglob(p):
+				t = pathlib.Path(f).relative_to(self.__input)
+				if self.is_renderable_template(t):
+					yield t.as_posix()
 
 	def filtered_templates(self):
 		for temp in self.renderable_templates():

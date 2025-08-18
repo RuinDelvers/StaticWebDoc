@@ -388,6 +388,12 @@ class ExternalModuleExtension(jinja2.ext.Extension):
 
 	tags = {"extern", "insert"}
 
+	def __init__(self, environment: jinja2.Environment) -> None:
+		super().__init__(environment)
+		self.__scripts = set()
+		self.__styles = set()
+
+
 	def parse(self, parser):
 		lineno = next(parser.stream).lineno
 		template = parser.name
@@ -407,15 +413,25 @@ class ExternalModuleExtension(jinja2.ext.Extension):
 		match parser._tag_stack[-1]:
 			case "extern":
 				parser.stream.expect("name:as")
-				var_name = parser.parse_expression()
-				import_node = nodes.Import(nodes.Const(template_path), var_name.name, True)
+				var_name = parser.parse_assign_target(name_only=True).name
+				import_node = nodes.Import(nodes.Const(template_path), var_name, True, lineno=lineno)
+				import_node = parser.parse_import_context(import_node, False)
 			case "insert":
-				import_node = nodes.Include(nodes.Const(template_path), True, False)
+				import_node = nodes.Include(nodes.Const(template_path), True, lineno=lineno)
+				import_node = parser.parse_import_context(import_node, True)
 
 		args = [style_path, script_path]
 		call_node = nodes.CallBlock(self.call_method("_render_html", args), [], [], [nodes.Const(None)])
 
 		return [import_node, call_node]
 
+	def print_scripts(self):
+		return "\n".join(self.__scripts)
+
+	def print_style(self):
+		return "\n".join(self.__styles)
+
 	def _render_html(self, style, script, caller=None):
-		return f"{style}\n{script}"
+		self.__scripts.add(script)
+		self.__styles.add(style)
+		return ""
