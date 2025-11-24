@@ -2,6 +2,7 @@ import jinja2
 import pathlib
 import shutil
 import orjson
+import os
 import dataclasses
 import htmlmin
 
@@ -115,6 +116,8 @@ class BuildFlags:
 	beautify: bool = True
 
 class Project:
+	current = None
+
 	source: str = DEFAULT_TEMPLATE_DIR
 	output: str = DEFAULT_RENDER_DIR
 	build: str = DEFAULT_BUILD_DIR
@@ -136,6 +139,10 @@ class Project:
 	object_file = OBJECT_FILE
 
 	def __init__(self, root):
+		if Project.current is not None:
+			raise ValueError("Attempted to instantiate multiple projects at once.")
+
+		Project.current = self
 		root = pathlib.Path(root)
 
 		self.__proj_root = root
@@ -167,6 +174,7 @@ class Project:
 
 		self.__filters = list(map(lambda x: x(self), self.template_filters))
 
+		self.import_modules()
 		self.__init_jinja_globals()
 
 		self.__rendered_templates = set()
@@ -440,11 +448,37 @@ class Project:
 	def default_build_flags(self):
 		return BuildFlags()
 
+	def import_modules(self):
+		"""
+		Override this function to import modules which depend upon the project.
+		"""
+		pass
+
+@dataclasses.dataclass(frozen=True)
+class TemplateObject:
+	"""
+	This generated class uses the current projects information to store information in extending classes.
+	It is a frozen data class so general classes can extend it as well as non-frozen dataclasses.
+	"""
+	project_data: dict[object] = dataclasses.field(default_factory=dict)
+
+	def __post_init__(self):
+		self.project_data["template"] = os.path.splitext(Project.current.current_template())[0]
+
+	@property
+	def project(self_inner):
+		return Project.current
+
+	@property
+	def template(self):
+		return self.project_data["template"]
+
 __all__ = [
 	"Project",
 	"proj_fn",
 	"proj_type",
 	"proj_filter",
 	"Markupable",
-	"BuildFlags"
+	"BuildFlags",
+	"TemplateObject"
 ]
