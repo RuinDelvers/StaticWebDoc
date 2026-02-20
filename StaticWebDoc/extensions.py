@@ -390,8 +390,8 @@ class ExternalModuleExtension(jinja2.ext.Extension):
 
 	def __init__(self, environment: jinja2.Environment) -> None:
 		super().__init__(environment)
-		self.__scripts = set()
-		self.__styles = set()
+		self.__scripts = {}
+		self.__styles = {}
 
 
 	def parse(self, parser):
@@ -420,18 +420,24 @@ class ExternalModuleExtension(jinja2.ext.Extension):
 				import_node = nodes.Include(nodes.Const(template_path), True, lineno=lineno)
 				import_node = parser.parse_import_context(import_node, True)
 
-		args = [style_path, script_path]
+		args = [style_path, script_path, nodes.Const(template)]
 		call_node = nodes.CallBlock(self.call_method("_render_html", args), [], [], [nodes.Const(None)])
 
 		return [import_node, call_node]
 
-	def print_scripts(self):
-		return "\n".join(self.__scripts)
+	def print_scripts(self, template):
+		return "\n".join(self.__scripts[template]) if template in self.__scripts else ""
 
-	def print_style(self):
-		return "\n".join(self.__styles)
+	def print_style(self, template):
+		return "\n".join(self.__styles[template]) if template in self.__styles else ""
 
-	def _render_html(self, style, script, caller=None):
-		self.__scripts.add(script)
-		self.__styles.add(style)
+	def _render_html(self, style, script, template, caller=None):
+		if template not in self.__scripts:
+			self.__scripts[template] = set()
+
+		if template not in self.__styles:
+			self.__styles[template] = set()
+
+		self.__scripts[template].add(script)
+		self.__styles [template].add(style)
 		return ""

@@ -254,11 +254,11 @@ class Project:
 
 	def __print_imported_scripts(self):
 		key = f"{extensions.ExternalModuleExtension.__module__}.{extensions.ExternalModuleExtension.__qualname__}"
-		return self.env.extensions[key].print_scripts()
+		return self.env.extensions[key].print_scripts(self.current_template())
 
 	def __print_imported_styles(self):
 		key = f"{extensions.ExternalModuleExtension.__module__}.{extensions.ExternalModuleExtension.__qualname__}"
-		return self.env.extensions[key].print_style()
+		return self.env.extensions[key].print_style(self.current_template())
 
 	def __add_proj_fn(self, name, fn):
 		self.add_global(name, lambda *args, **kwds: fn(self, *args, **kwds))
