@@ -2,6 +2,8 @@ import jinja2
 import pathlib
 import shutil
 import orjson
+import importlib
+import importlib.util
 import os
 import dataclasses
 import htmlmin
@@ -202,6 +204,13 @@ class Project:
 
 		self.env.globals[key] = item
 
+	def __import_py_module(self, module, alias):
+		if alias in self.global_vars:
+			raise ValueError("Attempted to import {module} as {alias}, but alias {alias} is in use.")
+		else:
+			module = importlib.import_module(module)
+			self.add_global(module, alias)
+
 	def __init_jinja_globals(self):
 		self.add_global("PROJECT", self)
 		self.add_global("style_dir", self.style_dir)
@@ -210,7 +219,8 @@ class Project:
 		self.add_global("document_dir", self.document_dir)
 		self.add_global("template_name", template_to_name)
 		self.add_global("iter_template", self.iter_template)
-
+		self.add_global("import_py", self.__import_py_module)
+		self.add_global(self.current_template_path.__name__, self.current_template_path)
 		self.add_global("style", utils.style)
 		self.add_global("script", utils.script)
 		self.add_global("link", _link)
@@ -221,7 +231,9 @@ class Project:
 		self.add_global(self.set_context_data.__name__, self.set_context_data)
 		self.add_global(self.get_context_data.__name__, self.get_context_data)
 		self.add_global(self.current_template.__name__, self.current_template)
+		self.add_global(self.template_directory.__name__, self.template_directory)
 		self.add_global(self.env_data.__name__, self.env_data)
+		self.add_global(self.path_to_template.__name__, self.path_to_template)
 
 		for key, value in self.global_vars.items():
 			self.add_global(key, value)
@@ -304,6 +316,9 @@ class Project:
 		return path
 
 	def request_render(self, template_name):
+		if isinstance(template_name, pathlib.Path):
+			template_name = template_to_name(template_name) + TEMPLATE_EXTENSION
+
 		if template_name in self.__rendered_templates:
 			return
 
@@ -359,10 +374,30 @@ class Project:
 			raise ValueError(f"Context data does not exist for key {context_name}")
 
 	def current_template(self):
+		"""
+		Returns the current template and includes the file extension. This is the path from the root of the project
+		to the template file.
+		"""
 		return self.__render_stack[-1]
 
 	def current_template_key(self):
-		return self.__render_stack[-1][:-len(TEMPLATE_EXTENSION)]
+		"""
+		Returns current_template with the extension removed.
+		"""
+		return self.current_template()[:-len(TEMPLATE_EXTENSION)]
+
+	def current_template_path(self):
+		""" Returns a path object for the currently rendered template. """
+		return self.template_dir/self.current_template()
+
+	def template_directory(self, template: str|None = None) -> pathlib.Path:
+		"""
+		Returns the directory of the given template. Uses current_template if template is None.
+		"""
+		return self.current_template_path().parent
+
+	def path_to_template(self, path: pathlib.Path):
+		return path.relative_to(self.template_dir)
 
 	def env_data(self, env_key, key=None, default=None, template=None):
 		data = self.env.embedded_data

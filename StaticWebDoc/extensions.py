@@ -204,17 +204,27 @@ class FragmentCache(SimpleCache, HasCallables):
 
 	@callable
 	def get_field(self, template, key):
+		"""
+			Gets the field to the template provides. Can be either a str or Path object, but
+			must be relative to the template directory.
+		"""
+		if isinstance(template, pathlib.Path):
+			if template.suffix != SWD.TEMPLATE_EXTENSION:
+				template += SWD.TEMPLATE_EXTENSION
+			template = template.as_posix()
+		else:
+			checkpath = pathlib.Path(template)
 
-		checkpath = pathlib.Path(template)
+			if checkpath.suffix != SWD.TEMPLATE_EXTENSION:			
+				template += SWD.TEMPLATE_EXTENSION
 
-		if checkpath.suffix != SWD.TEMPLATE_EXTENSION:
-			template += SWD.TEMPLATE_EXTENSION
+		
 
 		if template not in self.cache:
 			self.env.project.request_render(template)
 
 		if template not in self.cache:
-			raise ValueError(f"Template '{template}' does not have key '{key}'")
+			raise ValueError(f"Template '{template}' is not in cache")
 
 		if key in self[template]:
 			return self[template, key].strip()
