@@ -394,6 +394,7 @@ class EmbeddedDataSectionExtension(jinja2.ext.Extension):
 
 		return rv
 
+"""
 class ExternalModuleExtension(jinja2.ext.Extension):
 
 	tags = {"extern", "insert"}
@@ -451,3 +452,4 @@ class ExternalModuleExtension(jinja2.ext.Extension):
 		self.__scripts[template].add(script)
 		self.__styles [template].add(style)
 		return ""
+"""

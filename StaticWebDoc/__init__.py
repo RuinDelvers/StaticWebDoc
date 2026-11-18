@@ -156,7 +156,7 @@ class Project:
 		self.__styles = root/self.style_dir
 		self.__docroot = self.__output/self.document_dir
 		self.__dataroot = self.__output/self.data_dir
-		self.__build_dir = self.__proj_root/f"../{self.build}"
+		self.__build_dir = (self.__proj_root/f"../{self.build}").resolve()
 		self.__build_spec = None
 
 		if self.env is None:
@@ -167,8 +167,7 @@ class Project:
 				extensions=[
 					extensions.FragmentCacheExtension,
 					extensions.EmbeddedDataExtension,
-					extensions.EmbeddedDataSectionExtension,
-					extensions.ExternalModuleExtension]
+					extensions.EmbeddedDataSectionExtension]
 					+ self.exts)
 
 		self.env.undefined = jinja2.StrictUndefined
@@ -224,8 +223,8 @@ class Project:
 		self.add_global("style", utils.style)
 		self.add_global("script", utils.script)
 		self.add_global("link", _link)
-		self.add_global("imported_styles", self.__print_imported_styles)
-		self.add_global("imported_scripts", self.__print_imported_scripts)
+		#self.add_global("imported_styles", self.__print_imported_styles)
+		#self.add_global("imported_scripts", self.__print_imported_scripts)
 		self.add_global("markup", _get_markup)
 		self.add_global(self.pop_context_data.__name__, self.pop_context_data)
 		self.add_global(self.set_context_data.__name__, self.set_context_data)
@@ -263,14 +262,6 @@ class Project:
 			if isinstance(obj, extensions.HasCallables):
 				for name, call in obj.get_callables().items():
 					self.add_global(name, call)
-
-	def __print_imported_scripts(self):
-		key = f"{extensions.ExternalModuleExtension.__module__}.{extensions.ExternalModuleExtension.__qualname__}"
-		return self.env.extensions[key].print_scripts(self.current_template())
-
-	def __print_imported_styles(self):
-		key = f"{extensions.ExternalModuleExtension.__module__}.{extensions.ExternalModuleExtension.__qualname__}"
-		return self.env.extensions[key].print_style(self.current_template())
 
 	def __add_proj_fn(self, name, fn):
 		self.add_global(name, lambda *args, **kwds: fn(self, *args, **kwds))
@@ -424,6 +415,11 @@ class Project:
 		return self.__input
 
 	def clean(self):
+		if self.__build_dir.exists():
+			self.logger.normal(f'- Removing directory: {self.__build_dir}')
+			shutil.rmtree(self.__build_dir)
+
+		
 		if self.__docroot.exists():
 			self.logger.normal(f'- Removing directory: {self.__docroot}')
 			shutil.rmtree(self.__docroot)
@@ -431,6 +427,7 @@ class Project:
 		if self.__dataroot.exists():
 			self.logger.normal(f'- Removing directory: {self.__dataroot}')
 			shutil.rmtree(self.__dataroot)
+		
 
 	def __write_data(self):
 		self.__dataroot.mkdir(exist_ok=True, parents=True)
